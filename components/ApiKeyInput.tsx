@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { EyeIcon, EyeSlashIcon, KeyIcon, CheckCircleIcon, XCircleIcon } from './Icons.tsx';
-import { fetchModels } from '../services/openRouterService.ts';
+import { EyeIcon, EyeSlashIcon, KeyIcon, CheckCircleIcon, XCircleIcon } from './Icons';
+import { fetchModels } from '../services/openRouterService';
 
 interface ApiKeyInputProps {
   apiKey: string;

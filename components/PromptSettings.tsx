@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { PromptPreset } from '../types.ts';
-import { SaveIcon, ArrowPathIcon, TrashIcon } from './Icons.tsx';
+import { PromptPreset } from '../types';
+import { SaveIcon, ArrowPathIcon, TrashIcon } from './Icons';
 
 interface PromptSettingsProps {
   personaPrompt: string;

@@ -1,6 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
-import type { UsageInfo } from "../types.ts";
+import type { UsageInfo } from "../types";
 
 export const analyzeDocumentWithGemini = async (
   prompt: string, 

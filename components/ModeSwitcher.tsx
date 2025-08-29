@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Mode } from '../types.ts';
+import { Mode } from '../types';
 
 interface ModeSwitcherProps {
   mode: Mode;

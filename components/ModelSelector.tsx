@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { OpenRouterModel } from '../types.ts';
-import { ChevronDownIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, BrainIcon } from './Icons.tsx';
+import { OpenRouterModel } from '../types';
+import { ChevronDownIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, BrainIcon } from './Icons';
 
 interface ModelSelectorProps {
   model: string;

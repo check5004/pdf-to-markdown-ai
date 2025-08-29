@@ -1,5 +1,5 @@
 import React from 'react';
-import { AnalysisMode } from '../types.ts';
+import { AnalysisMode } from '../types';
 
 interface AnalysisModeSwitcherProps {
   mode: AnalysisMode;
