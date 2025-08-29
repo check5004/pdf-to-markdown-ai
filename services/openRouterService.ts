@@ -1,5 +1,4 @@
-
-import type { OpenRouterModel, ModalityType, UsageInfo } from '../types';
+import type { OpenRouterModel, ModalityType, UsageInfo } from '../types.ts';
 
 const API_BASE_URL = 'https://openrouter.ai/api/v1';
 // Add recommended headers with safe ASCII values to prevent encoding errors.

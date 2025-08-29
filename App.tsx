@@ -1,21 +1,20 @@
-
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Mode, OpenRouterModel, PromptPreset, AnalysisMode, UsageInfo } from './types';
-import useLocalStorage from './hooks/useLocalStorage';
-import { analyzeDocumentWithGemini } from './services/geminiService';
-import { analyzeDocumentWithOpenRouter, fetchModels } from './services/openRouterService';
-import ModeSwitcher from './components/ModeSwitcher';
-import AnalysisModeSwitcher from './components/AnalysisModeSwitcher';
-import ApiKeyInput from './components/ApiKeyInput';
-import ModelSelector from './components/ModelSelector';
-import FileUpload from './components/FileUpload';
-import MarkdownPreview from './components/MarkdownPreview';
-import PromptSettings from './components/PromptSettings';
-import CollapsibleSection from './components/CollapsibleSection';
-import DebugInfo from './components/DebugInfo';
-import UsageInfoDisplay from './components/UsageInfoDisplay';
-import ThinkingModeSwitcher from './components/ThinkingModeSwitcher';
-import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon } from './components/Icons';
+import { Mode, OpenRouterModel, PromptPreset, AnalysisMode, UsageInfo } from './types.ts';
+import useLocalStorage from './hooks/useLocalStorage.ts';
+import { analyzeDocumentWithGemini } from './services/geminiService.ts';
+import { analyzeDocumentWithOpenRouter, fetchModels } from './services/openRouterService.ts';
+import ModeSwitcher from './components/ModeSwitcher.tsx';
+import AnalysisModeSwitcher from './components/AnalysisModeSwitcher.tsx';
+import ApiKeyInput from './components/ApiKeyInput.tsx';
+import ModelSelector from './components/ModelSelector.tsx';
+import FileUpload from './components/FileUpload.tsx';
+import MarkdownPreview from './components/MarkdownPreview.tsx';
+import PromptSettings from './components/PromptSettings.tsx';
+import CollapsibleSection from './components/CollapsibleSection.tsx';
+import DebugInfo from './components/DebugInfo.tsx';
+import UsageInfoDisplay from './components/UsageInfoDisplay.tsx';
+import ThinkingModeSwitcher from './components/ThinkingModeSwitcher.tsx';
+import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon } from './components/Icons.tsx';
 
 // pdf.js is loaded from CDN, so we need to declare its global object
 declare const pdfjsLib: any;
