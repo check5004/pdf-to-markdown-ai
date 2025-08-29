@@ -29,9 +29,12 @@
   }
 }
 </script>
+<!-- Add Babel Standalone for JSX and TypeScript transformation in the browser -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
   <body class="bg-gray-100 dark:bg-gray-900">
     <div id="root"></div>
-    <script type="module" src="index.tsx"></script>
+    <!-- Change script type to text/babel for Babel to transpile it -->
+    <script type="text/babel" data-type="module" src="index.tsx"></script>
   </body>
 </html>
