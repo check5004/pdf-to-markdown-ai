@@ -1,20 +1,21 @@
+
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Mode, OpenRouterModel, PromptPreset, AnalysisMode, UsageInfo } from './types.ts';
-import useLocalStorage from './hooks/useLocalStorage.ts';
-import { analyzeDocumentWithGemini } from './services/geminiService.ts';
-import { analyzeDocumentWithOpenRouter, fetchModels } from './services/openRouterService.ts';
-import ModeSwitcher from './components/ModeSwitcher.tsx';
-import AnalysisModeSwitcher from './components/AnalysisModeSwitcher.tsx';
-import ApiKeyInput from './components/ApiKeyInput.tsx';
-import ModelSelector from './components/ModelSelector.tsx';
-import FileUpload from './components/FileUpload.tsx';
-import MarkdownPreview from './components/MarkdownPreview.tsx';
-import PromptSettings from './components/PromptSettings.tsx';
-import CollapsibleSection from './components/CollapsibleSection.tsx';
-import DebugInfo from './components/DebugInfo.tsx';
-import UsageInfoDisplay from './components/UsageInfoDisplay.tsx';
-import ThinkingModeSwitcher from './components/ThinkingModeSwitcher.tsx';
-import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon } from './components/Icons.tsx';
+import { Mode, OpenRouterModel, PromptPreset, AnalysisMode, UsageInfo } from './types';
+import useLocalStorage from './hooks/useLocalStorage';
+import { analyzeDocumentWithGemini } from './services/geminiService';
+import { analyzeDocumentWithOpenRouter, fetchModels } from './services/openRouterService';
+import ModeSwitcher from './components/ModeSwitcher';
+import AnalysisModeSwitcher from './components/AnalysisModeSwitcher';
+import ApiKeyInput from './components/ApiKeyInput';
+import ModelSelector from './components/ModelSelector';
+import FileUpload from './components/FileUpload';
+import MarkdownPreview from './components/MarkdownPreview';
+import PromptSettings from './components/PromptSettings';
+import CollapsibleSection from './components/CollapsibleSection';
+import DebugInfo from './components/DebugInfo';
+import UsageInfoDisplay from './components/UsageInfoDisplay';
+import ThinkingModeSwitcher from './components/ThinkingModeSwitcher';
+import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon } from './components/Icons';
 
 // pdf.js is loaded from CDN, so we need to declare its global object
 declare const pdfjsLib: any;
@@ -450,6 +451,22 @@ export default function App() {
                 <h2 className="text-xl font-bold border-b pb-2 border-gray-200 dark:border-gray-700">設定</h2>
                 <ModeSwitcher mode={mode} setMode={setMode} isGeminiAvailable={isGeminiAvailable} />
                 <AnalysisModeSwitcher mode={analysisMode} setMode={setAnalysisMode} />
+                
+                {mode === Mode.GEMINI && isGeminiAvailable && (
+                    <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+                      <div className="p-3 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 dark:bg-yellow-900/20 dark:border-yellow-500 dark:text-yellow-200 flex items-start gap-3" role="alert">
+                        <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold">Gemini利用時の注意</p>
+                          <ul className="text-sm list-disc list-inside space-y-1 mt-1">
+                            <li>送信されたデータがAIの学習に使用される可能性があります。機密情報は含めないでください。</li>
+                            <li>1日あたりの利用回数に制限があります。</li>
+                            <li>頻繁にご利用の場合は、OpenRouterのご利用を推奨します。</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                )}
                 
                 {mode === Mode.OPENROUTER && (
                   <div className="space-y-4 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">

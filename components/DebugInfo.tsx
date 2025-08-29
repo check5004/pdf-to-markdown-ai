@@ -1,5 +1,5 @@
 import React from 'react';
-import CollapsibleSection from './CollapsibleSection.tsx';
+import CollapsibleSection from './CollapsibleSection';
 
 interface DebugInfoProps {
   debugInfo: {

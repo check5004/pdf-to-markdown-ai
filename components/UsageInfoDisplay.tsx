@@ -1,6 +1,7 @@
+
 import React from 'react';
-import { UsageInfo } from '../types.ts';
-import { CurrencyDollarIcon } from './Icons.tsx';
+import { UsageInfo } from '../types';
+import { CurrencyDollarIcon } from './Icons';
 
 interface ExchangeRateInfo {
   rate: number;

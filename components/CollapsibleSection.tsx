@@ -1,5 +1,5 @@
 import React, { useState, ReactNode } from 'react';
-import { ChevronDownIcon } from './Icons.tsx';
+import { ChevronDownIcon } from './Icons';
 
 interface CollapsibleSectionProps {
   title: ReactNode;
