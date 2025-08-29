@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Mode, OpenRouterModel, PromptPreset, AnalysisMode, UsageInfo } from './types';
 import useLocalStorage from './hooks/useLocalStorage';
 import { analyzeDocumentWithGemini } from './services/geminiService';
@@ -134,7 +134,9 @@ const ModelInfoDisplay: React.FC<{ model: OpenRouterModel | undefined; }> = ({ m
 
 
 export default function App() {
-  const [mode, setMode] = useLocalStorage<Mode>('doc-converter-mode', Mode.OPENROUTER);
+  const isGeminiAvailable = useMemo(() => !!(process.env.API_KEY || process.env.GEMINI_API_KEY), []);
+  
+  const [mode, setMode] = useLocalStorage<Mode>('doc-converter-mode', isGeminiAvailable ? Mode.GEMINI : Mode.OPENROUTER);
   const [analysisMode, setAnalysisMode] = useLocalStorage<AnalysisMode>('analysis-mode', 'image-with-text');
   const [openRouterApiKey, setOpenRouterApiKey] = useLocalStorage<string>('openrouter-api-key', '');
   const [isApiKeyInvalid, setIsApiKeyInvalid] = useState<boolean>(false);
@@ -168,6 +170,12 @@ export default function App() {
     return undefined;
   }, [mode, openRouterModel, availableModels]);
   
+  useEffect(() => {
+    if (!isGeminiAvailable && mode === Mode.GEMINI) {
+      setMode(Mode.OPENROUTER);
+    }
+  }, [isGeminiAvailable, mode, setMode]);
+
   useEffect(() => {
     if (typeof window !== 'undefined' && 'pdfjsLib' in window) {
       pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.mjs`;
@@ -253,6 +261,10 @@ export default function App() {
       setError('最初にPDFファイルをアップロードしてください。');
       return;
     }
+    if (mode === Mode.GEMINI && !isGeminiAvailable) {
+      setError('Gemini APIキーが設定されていないため、Geminiは利用できません。OpenRouterを利用してください。');
+      return;
+    }
     if (mode === Mode.OPENROUTER && (!openRouterApiKey || !openRouterModel)) {
       setError('OpenRouterのAPIキーを入力し、モデルを選択してください。');
       return;
@@ -336,7 +348,7 @@ export default function App() {
       setIsLoading(false);
       setProgressMessage('');
     }
-  }, [pdfFile, mode, analysisMode, openRouterApiKey, openRouterModel, personaPrompt, userPrompt, temperature, selectedOpenRouterModel, isThinkingEnabled]);
+  }, [pdfFile, mode, analysisMode, openRouterApiKey, openRouterModel, personaPrompt, userPrompt, temperature, selectedOpenRouterModel, isThinkingEnabled, isGeminiAvailable]);
 
   const handleDownload = useCallback(() => {
     if (!markdown) return;
@@ -437,7 +449,7 @@ export default function App() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8">
               <div className="space-y-6">
                 <h2 className="text-xl font-bold border-b pb-2 border-gray-200 dark:border-gray-700">設定</h2>
-                <ModeSwitcher mode={mode} setMode={setMode} />
+                <ModeSwitcher mode={mode} setMode={setMode} isGeminiAvailable={isGeminiAvailable} />
                 <AnalysisModeSwitcher mode={analysisMode} setMode={setAnalysisMode} />
                 
                 {mode === Mode.OPENROUTER && (

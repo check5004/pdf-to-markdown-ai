@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import type { UsageInfo } from "../types";
 
@@ -8,10 +9,11 @@ export const analyzeDocumentWithGemini = async (
   temperature: number,
   extractedText?: string
 ): Promise<{ result: string; debug: { request: any; response: any }; usage: UsageInfo | null }> => {
-  if (!process.env.API_KEY) {
-    throw new Error("Gemini APIキーが設定されていません。API_KEY環境変数を設定してください。");
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini APIキーが設定されていません。API_KEY または GEMINI_API_KEY 環境変数を設定してください。");
   }
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
 
   const imageParts = base64Images.map(imgData => {
     const base64Data = imgData.split(',')[1];
