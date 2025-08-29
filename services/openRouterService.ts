@@ -67,15 +67,6 @@ export const fetchModels = async (apiKey: string): Promise<OpenRouterModel[]> =>
         // Correctly determine thinking support from `supported_parameters` property
         const supports_thinking = Array.isArray(supportedParameters) && supportedParameters.includes('reasoning');
 
-        // --- START OF DEBUG LOG ---
-        if (model.id.includes('google') || model.id.includes('flash')) {
-          console.log(
-            `[DEBUG] Model: ${model.id} | Supports Thinking: ${supports_thinking} | supported_parameters:`, 
-            model.supported_parameters
-          );
-        }
-        // --- END OF DEBUG LOG ---
-
         return {
           id: model.id,
           name: model.name,

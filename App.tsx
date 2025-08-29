@@ -138,9 +138,6 @@ const ModelInfoDisplay: React.FC<{ model: OpenRouterModel | undefined; }> = ({ m
 
 
 export default function App() {
-  // Log the current URL for Azure AD Redirect URI configuration
-  console.log("Azure AD Redirect URI:", window.location.origin);
-
   const isGeminiAvailable = useMemo(() => !!(process.env.API_KEY || process.env.GEMINI_API_KEY), []);
   
   const [mode, setMode] = useLocalStorage<Mode>('doc-converter-mode', isGeminiAvailable ? Mode.GEMINI : Mode.OPENROUTER);
