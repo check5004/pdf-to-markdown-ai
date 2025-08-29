@@ -165,3 +165,15 @@ export const BrainIcon: React.FC<React.SVGProps<SVGSVGElement> & { title?: strin
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 13.5c0 1.223.706 2.33 1.75 2.816.32.183.66.328 1.014.448m-2.764-3.264C8.618 12.658 8 11.636 8 10.5c0-1.223.706-2.33 1.75-2.816.32-.183.66-.328 1.014-.448m-2.764 3.264V13.5m0-3V10.5m2.764 3.264c.354-.12.694-.265 1.014-.448 1.044-.486 1.75-1.593 1.75-2.816 0-1.136-.618-2.158-1.5-2.684m-2.764 5.368c.354-.12.694-.265 1.014-.448.28-.13.546-.28.796-.448m-4.57 2.44c.523.385 1.13.684 1.792.882C13.06 17.34 14 16.223 14 15c0-1.136-.618-2.158-1.5-2.684m4.5 5.368c-.523.385-1.13.684-1.792.882-.662.198-1.38.316-2.122.316-1.223 0-2.33-.706-2.816-1.75m4.27-7.135c-.354.12-.694.265-1.014.448-.28.13-.546.28-.796.448m0 0A13.5 13.5 0 006 15c0 1.223.706 2.33 1.75 2.816M18 15a13.5 13.5 0 00-1.296-5.052M12 3.75v.01M12 1.5a2.25 2.25 0 00-2.25 2.25c0 1.006.68 1.848 1.597 2.148.455.15.93.22 1.403.22s.948-.07 1.403-.22c.917-.3 1.597-1.142 1.597-2.148A2.25 2.25 0 0012 1.5z" />
     </svg>
 );
+
+export const UserCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+  </svg>
+);
+
+export const ArrowRightOnRectangleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+  </svg>
+);

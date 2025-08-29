@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { PublicClientApplication } from '@azure/msal-browser';
 import { Mode, OpenRouterModel, PromptPreset, AnalysisMode, UsageInfo } from './types';
 import useLocalStorage from './hooks/useLocalStorage';
 import { analyzeDocumentWithGemini } from './services/geminiService';
@@ -15,7 +16,10 @@ import CollapsibleSection from './components/CollapsibleSection';
 import DebugInfo from './components/DebugInfo';
 import UsageInfoDisplay from './components/UsageInfoDisplay';
 import ThinkingModeSwitcher from './components/ThinkingModeSwitcher';
+import GeminiAuth from './components/GeminiAuth';
 import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon } from './components/Icons';
+import { msalConfig, loginRequest, AUTHORIZED_DOMAIN } from './authConfig';
+
 
 // pdf.js is loaded from CDN, so we need to declare its global object
 declare const pdfjsLib: any;
@@ -134,6 +138,9 @@ const ModelInfoDisplay: React.FC<{ model: OpenRouterModel | undefined; }> = ({ m
 
 
 export default function App() {
+  // Log the current URL for Azure AD Redirect URI configuration
+  console.log("Azure AD Redirect URI:", window.location.origin);
+
   const isGeminiAvailable = useMemo(() => !!(process.env.API_KEY || process.env.GEMINI_API_KEY), []);
   
   const [mode, setMode] = useLocalStorage<Mode>('doc-converter-mode', isGeminiAvailable ? Mode.GEMINI : Mode.OPENROUTER);
@@ -163,6 +170,59 @@ export default function App() {
   const [presets, setPresets] = useLocalStorage<PromptPreset[]>('ai-presets', []);
   const [selectedPresetId, setSelectedPresetId] = useLocalStorage<string>('ai-selected-preset-id', 'default');
   
+  // MSAL State
+  const [msalInstance] = useState(() => new PublicClientApplication(msalConfig));
+  const [account, setAccount] = useState<any | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const initializeMsal = async () => {
+      try {
+        await msalInstance.initialize();
+        const currentAccounts = msalInstance.getAllAccounts();
+        if (currentAccounts.length > 0) {
+          setAccount(currentAccounts[0]);
+        }
+      } catch (err: any) {
+        console.error(err);
+        setAuthError(err.errorMessage || 'An unknown authentication error occurred.');
+      } finally {
+        setIsAuthLoading(false);
+      }
+    };
+
+    initializeMsal();
+  }, [msalInstance]);
+
+  const handleLogin = useCallback(async () => {
+    try {
+      const response = await msalInstance.loginPopup(loginRequest);
+      setAccount(response.account);
+    } catch (e: any) {
+      console.error(e);
+      setAuthError(e.errorMessage || 'Login failed.');
+    }
+  }, [msalInstance]);
+
+  const handleLogout = useCallback(async () => {
+    if (account) {
+      try {
+        await msalInstance.logoutPopup({ account });
+        setAccount(null);
+      } catch (e: any) {
+        console.error(e);
+        setAuthError(e.errorMessage || 'Logout failed.');
+      }
+    }
+  }, [msalInstance, account]);
+  
+  const isAuthorized = useMemo(() => {
+    if (!account) return false;
+    const username = account.username || '';
+    return username.toLowerCase().endsWith(`@${AUTHORIZED_DOMAIN}`);
+  }, [account]);
+
   const selectedOpenRouterModel = React.useMemo(() => {
     if (mode === Mode.OPENROUTER && openRouterModel && availableModels.length > 0) {
       return availableModels.find(m => m.id === openRouterModel);
@@ -261,9 +321,15 @@ export default function App() {
       setError('最初にPDFファイルをアップロードしてください。');
       return;
     }
-    if (mode === Mode.GEMINI && !isGeminiAvailable) {
-      setError('Gemini APIキーが設定されていないため、Geminiは利用できません。OpenRouterを利用してください。');
-      return;
+    if (mode === Mode.GEMINI) {
+      if (!isGeminiAvailable) {
+        setError('Gemini APIキーが設定されていないため、Geminiは利用できません。OpenRouterを利用してください。');
+        return;
+      }
+      if (!isAuthorized) {
+        setError('Geminiを利用するには、指定されたドメインのアカウントでログインする必要があります。');
+        return;
+      }
     }
     if (mode === Mode.OPENROUTER && (!openRouterApiKey || !openRouterModel)) {
       setError('OpenRouterのAPIキーを入力し、モデルを選択してください。');
@@ -348,7 +414,7 @@ export default function App() {
       setIsLoading(false);
       setProgressMessage('');
     }
-  }, [pdfFile, mode, analysisMode, openRouterApiKey, openRouterModel, personaPrompt, userPrompt, temperature, selectedOpenRouterModel, isThinkingEnabled, isGeminiAvailable]);
+  }, [pdfFile, mode, analysisMode, openRouterApiKey, openRouterModel, personaPrompt, userPrompt, temperature, selectedOpenRouterModel, isThinkingEnabled, isGeminiAvailable, isAuthorized]);
 
   const handleDownload = useCallback(() => {
     if (!markdown) return;
@@ -426,7 +492,7 @@ export default function App() {
   }, [presets, selectedPresetId, setPresets, handleLoadPreset]);
 
   
-  const isAnalyzeDisabled = isLoading || !pdfFile || (mode === Mode.OPENROUTER && (!openRouterApiKey || !openRouterModel));
+  const isAnalyzeDisabled = isLoading || !pdfFile || (mode === Mode.OPENROUTER && (!openRouterApiKey || !openRouterModel)) || (mode === Mode.GEMINI && (!isAuthorized || !isGeminiAvailable));
 
   const showImageCapabilityWarning = 
     mode === Mode.OPENROUTER &&
@@ -454,17 +520,26 @@ export default function App() {
                 
                 {mode === Mode.GEMINI && isGeminiAvailable && (
                     <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-                      <div className="p-3 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 dark:bg-yellow-900/20 dark:border-yellow-500 dark:text-yellow-200 flex items-start gap-3" role="alert">
-                        <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-bold">Gemini利用時の注意</p>
-                          <ul className="text-sm list-disc list-inside space-y-1 mt-1">
-                            <li>送信されたデータがAIの学習に使用される可能性があります。機密情報は含めないでください。</li>
-                            <li>1日あたりの利用回数に制限があります。</li>
-                            <li>頻繁にご利用の場合は、OpenRouterのご利用を推奨します。</li>
-                          </ul>
+                      <GeminiAuth 
+                        account={account}
+                        isAuthorized={isAuthorized}
+                        isLoading={isAuthLoading}
+                        authError={authError}
+                        onLogin={handleLogin}
+                        onLogout={handleLogout}
+                      />
+                      {isAuthorized && (
+                        <div className="mt-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 dark:bg-yellow-900/20 dark:border-yellow-500 dark:text-yellow-200 flex items-start gap-3" role="alert">
+                          <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold">Gemini利用時の注意</p>
+                            <ul className="text-sm list-disc list-inside space-y-1 mt-1">
+                              <li>送信されたデータがAIの学習に使用される可能性があります。機密情報は含めないでください。</li>
+                              <li>1日あたりの利用回数に制限があります。</li>
+                            </ul>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                 )}
                 
