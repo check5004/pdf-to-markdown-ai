@@ -147,9 +147,9 @@ export const VideoCameraIcon: React.FC<React.SVGProps<SVGSVGElement> & { title?:
 );
 
 export const WrenchScrewdriverIcon: React.FC<React.SVGProps<SVGSVGElement> & { title?: string }> = ({ title, ...props }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
       {title && <title>{title}</title>}
-      <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.471-2.471a.563.563 0 0 1 .796 0l.47.47a.562.562 0 0 1 0 .796l-2.471 2.471m-2.285 0a2.652 2.652 0 0 0-3.75-3.75l-2.471 2.471a.563.563 0 0 1-.796 0l-.47-.47a.563.563 0 0 1 0-.796l2.471-2.471 1.258-1.258c.24-.24.578-.366.924-.366H10.5a2.25 2.25 0 0 0 2.25-2.25V7.5a2.25 2.25 0 0 0-2.25-2.25H8.625a2.25 2.25 0 0 0-2.25 2.25v1.875c0 .346.126.684.366.924l1.258 1.258h0Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
     </svg>
 );
 
@@ -160,9 +160,11 @@ export const ExclamationTriangleIcon: React.FC<React.SVGProps<SVGSVGElement>> = 
 );
 
 export const BrainIcon: React.FC<React.SVGProps<SVGSVGElement> & { title?: string }> = ({ title, ...props }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
       {title && <title>{title}</title>}
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 13.5c0 1.223.706 2.33 1.75 2.816.32.183.66.328 1.014.448m-2.764-3.264C8.618 12.658 8 11.636 8 10.5c0-1.223.706-2.33 1.75-2.816.32-.183.66-.328 1.014-.448m-2.764 3.264V13.5m0-3V10.5m2.764 3.264c.354-.12.694-.265 1.014-.448 1.044-.486 1.75-1.593 1.75-2.816 0-1.136-.618-2.158-1.5-2.684m-2.764 5.368c.354-.12.694-.265 1.014-.448.28-.13.546-.28.796-.448m-4.57 2.44c.523.385 1.13.684 1.792.882C13.06 17.34 14 16.223 14 15c0-1.136-.618-2.158-1.5-2.684m4.5 5.368c-.523.385-1.13.684-1.792.882-.662.198-1.38.316-2.122.316-1.223 0-2.33-.706-2.816-1.75m4.27-7.135c-.354.12-.694.265-1.014.448-.28.13-.546.28-.796.448m0 0A13.5 13.5 0 006 15c0 1.223.706 2.33 1.75 2.816M18 15a13.5 13.5 0 00-1.296-5.052M12 3.75v.01M12 1.5a2.25 2.25 0 00-2.25 2.25c0 1.006.68 1.848 1.597 2.148.455.15.93.22 1.403.22s.948-.07 1.403-.22c.917-.3 1.597-1.142 1.597-2.148A2.25 2.25 0 0012 1.5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a7 7 0 0 0-7 7c0 2.5 1.2 4.2 2.6 5.4.7.6 1.4 1.6 1.4 2.6v.5h6v-.5c0-1 .7-2 1.4-2.6C17.8 14.2 19 12.5 19 10a7 7 0 0 0-7-7z"/>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 20h6M10 22h4"/>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.6 10.1c.3-1.1 1.9-1.1 2.3 0 .4-1.2 2-1.1 2.3 0 0 1.4-1.3 2-2.3 2.6-.9-.6-2.3-1.2-2.3-2.6z"/>
     </svg>
 );
 
