@@ -1,0 +1,5 @@
+{
+  "name": "PDF設計書 Markdown変換",
+  "description": "PDF形式の設計書（Excelからエクスポートされたものなど）をアップロードすると、AIが画像や表を含む内容を解析し、構造化されたMarkdownドキュメントに変換します。GeminiとOpenRouterモデルの両方をサポートしています。",
+  "requestFramePermissions": []
+}
