@@ -1,7 +1,10 @@
 
 import { useState, useEffect } from 'react';
 
-function useLocalStorage<T,>(key: string, initialValue: T): [T, (value: T) => void] {
+// Fix: Update function signature and setter type to support functional updates.
+// This allows the setter to receive a function (e.g., `setValue(prev => ...)`),
+// which resolves TypeScript errors when using this pattern in other components.
+function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
   const [storedValue, setStoredValue] = useState<T>(() => {
     if (typeof window === 'undefined') {
       return initialValue;
@@ -15,7 +18,7 @@ function useLocalStorage<T,>(key: string, initialValue: T): [T, (value: T) => vo
     }
   });
 
-  const setValue = (value: T) => {
+  const setValue = (value: T | ((val: T) => T)) => {
     try {
       const valueToStore = value instanceof Function ? value(storedValue) : value;
       setStoredValue(valueToStore);

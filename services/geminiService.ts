@@ -1,6 +1,6 @@
 
-import { GoogleGenAI } from "@google/genai";
-import type { UsageInfo } from "../types";
+import { GoogleGenAI, Type } from "@google/genai";
+import type { UsageInfo, Question } from "../types";
 
 export const analyzeDocumentWithGemini = async (
   prompt: string, 
@@ -58,6 +58,83 @@ ${extractedText}
 
   } catch (error) {
     console.error("Error calling Gemini API:", error);
+    if (error instanceof Error) {
+        throw new Error(`Gemini APIからの応答の取得に失敗しました: ${error.message}`);
+    }
+    throw new Error("Gemini APIからの応答の取得に失敗しました。");
+  }
+};
+
+
+export const generateClarificationQuestions = async (
+  markdown: string,
+  systemInstruction: string,
+  userPrompt: string,
+  temperature: number,
+): Promise<{ questions: Question[]; debug: { request: any; response: any }; usage: UsageInfo | null }> => {
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("Gemini APIキーが設定されていません。");
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const fullPrompt = `${userPrompt}\n\nドキュメント:\n\`\`\`markdown\n${markdown}\n\`\`\``;
+
+  const payload = {
+    model: 'gemini-2.5-flash',
+    contents: fullPrompt,
+    config: {
+      systemInstruction: systemInstruction,
+      temperature: temperature,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          questions: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                question: {
+                  type: Type.STRING,
+                  description: 'ユーザーへの質問文',
+                },
+                suggestions: {
+                  type: Type.ARRAY,
+                  description: '質問に対する回答のサジェスト（1〜3個）',
+                  items: {
+                    type: Type.STRING,
+                  },
+                },
+              },
+              required: ['question']
+            }
+          }
+        },
+        required: ['questions']
+      },
+    }
+  };
+
+  try {
+    const response = await ai.models.generateContent(payload);
+    const jsonStr = response.text.trim();
+    const parsed = JSON.parse(jsonStr);
+    
+    if (!parsed.questions || !Array.isArray(parsed.questions)) {
+      throw new Error("AIの応答が予期した形式（questions配列）ではありません。");
+    }
+
+    const questions: Question[] = parsed.questions.map((q: any) => ({
+      id: self.crypto.randomUUID(),
+      question: q.question,
+      answer: '',
+      suggestions: q.suggestions || [],
+    }));
+
+    return { questions, debug: { request: payload, response }, usage: null };
+
+  } catch (error) {
+    console.error("Error calling Gemini API for question generation:", error);
     if (error instanceof Error) {
         throw new Error(`Gemini APIからの応答の取得に失敗しました: ${error.message}`);
     }

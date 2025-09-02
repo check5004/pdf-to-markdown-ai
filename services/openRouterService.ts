@@ -1,5 +1,5 @@
 
-import type { OpenRouterModel, ModalityType, UsageInfo } from '../types';
+import type { OpenRouterModel, ModalityType, UsageInfo, Question } from '../types';
 
 const API_BASE_URL = 'https://openrouter.ai/api/v1';
 // Add recommended headers with safe ASCII values to prevent encoding errors.
@@ -203,6 +203,92 @@ ${extractedText}
     
   } catch (error) {
     console.error("Error calling OpenRouter API:", error);
+    throw new Error(`OpenRouterからの応答の取得に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+  }
+};
+
+export const generateClarificationQuestionsWithOpenRouter = async (
+  markdown: string,
+  modelId: string,
+  apiKey: string,
+  systemInstruction: string,
+  userPrompt: string,
+  temperature: number
+): Promise<{ questions: Question[]; debug: { request: any; response: any; }; usage: UsageInfo | null; }> => {
+  const fullPrompt = `${userPrompt}
+  レスポンスは以下のJSON形式のみで出力してください。他のテキストは含めないでください。
+  \`\`\`json
+  {
+    "questions": [
+      { 
+        "question": "ここに質問文1が入ります",
+        "suggestions": ["サジェスト1", "サジェスト2"]
+      },
+      { 
+        "question": "ここに質問文2が入ります",
+        "suggestions": ["サジェストA", "サジェストB", "サジェストC"]
+      }
+    ]
+  }
+  \`\`\`
+  
+  ドキュメント:
+  \`\`\`markdown
+  ${markdown}
+  \`\`\`
+  `;
+
+  const messages = [
+    { role: 'system', content: systemInstruction },
+    { role: 'user', content: fullPrompt }
+  ];
+
+  const body: any = {
+      model: modelId,
+      messages: messages,
+      temperature: temperature,
+      response_format: { "type": "json_object" },
+  };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: { ...createHeaders(apiKey), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData?.error?.message || `HTTPエラー！ステータス: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content;
+    if (!content) throw new Error('APIからの応答にコンテンツが含まれていません。');
+    
+    const parsed = JSON.parse(content);
+    if (!parsed.questions || !Array.isArray(parsed.questions)) {
+      throw new Error("AIの応答が予期した形式（questions配列）ではありません。");
+    }
+
+    const questions: Question[] = parsed.questions.map((q: any) => ({
+      id: self.crypto.randomUUID(),
+      question: q.question,
+      answer: '',
+      suggestions: q.suggestions || []
+    })).filter(q => q.question);
+
+    const usage: UsageInfo | null = data.usage ? {
+      prompt_tokens: data.usage.prompt_tokens || 0,
+      completion_tokens: data.usage.completion_tokens || 0,
+      total_tokens: data.usage.total_tokens || 0,
+      cost: 0, 
+    } : null;
+
+    return { questions, debug: { request: body, response: data }, usage };
+    
+  } catch (error) {
+    console.error("Error calling OpenRouter API for question generation:", error);
     throw new Error(`OpenRouterからの応答の取得に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
   }
 };

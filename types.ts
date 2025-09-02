@@ -38,3 +38,17 @@ export interface UsageInfo {
   total_tokens: number;
   cost: number;
 }
+
+export interface Question {
+  id: string;
+  question: string;
+  answer: string;
+  suggestions?: string[];
+}
+
+export interface AnalysisResult {
+  id: string;
+  markdown: string;
+  usageInfo: UsageInfo | null;
+  debugInfo: { request: any; response: any; generationResponse?: any; } | null;
+}

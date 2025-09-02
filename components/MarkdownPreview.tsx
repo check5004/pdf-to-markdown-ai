@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, memo, useRef } from 'react';
 
 // Because we can't use npm, we'll dynamically import from a CDN.
@@ -141,7 +142,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ markdown, isLoading, 
   if (!markdown) {
     return (
       <div className="w-full min-h-[200px] bg-gray-100 dark:bg-gray-700/50 rounded-lg p-4 flex justify-center items-center">
-        <p className="text-gray-500 dark:text-gray-400">生成されたドキュメントはここに表示されます。</p>
+        <p className="text-gray-500 dark:text-gray-400">ここに解析結果が表示されます。</p>
       </div>
     );
   }
