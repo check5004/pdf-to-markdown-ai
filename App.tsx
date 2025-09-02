@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { Mode, OpenRouterModel, PromptPreset, AnalysisMode, UsageInfo, Question, AnalysisResult } from './types';
@@ -18,6 +17,7 @@ import UsageInfoDisplay from './components/UsageInfoDisplay';
 import ThinkingModeSwitcher from './components/ThinkingModeSwitcher';
 import GeminiAuth from './components/GeminiAuth';
 import ClarificationPanel from './components/ClarificationPanel';
+import PdfPreview from './components/PdfPreview';
 import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon, SparklesIcon, BugAntIcon } from './components/Icons';
 import { msalConfig, loginRequest, AUTHORIZED_DOMAIN } from './authConfig';
 
@@ -249,6 +249,7 @@ export default function App() {
 
   // File and results state
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState<boolean>(false);
   const [analysisHistory, setAnalysisHistory] = useLocalStorage<AnalysisResult[]>('doc-converter-analysis-history', []);
   const [questionsMap, setQuestionsMap] = useLocalStorage<Record<string, Question[]>>('doc-converter-questions-map', {});
   const [answeredQuestionsMap, setAnsweredQuestionsMap] = useLocalStorage<Record<string, Question[]>>('doc-converter-answered-questions-map', {});
@@ -710,7 +711,7 @@ export default function App() {
           <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">複雑なPDF設計書をAIでクリーンなMarkdownドキュメントに変換します。</p>
         </header>
 
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-8 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
           {/* --- Left Column: Inputs & Settings --- */}
           <div className="space-y-8 xl:col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8">
@@ -734,7 +735,39 @@ export default function App() {
                 {mode === Mode.OPENROUTER && (
                   <div className="space-y-4 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
                     <ApiKeyInput apiKey={openRouterApiKey} setApiKey={(key: string) => { setOpenRouterApiKey(key); setIsApiKeyInvalid(false); }} isInvalid={isApiKeyInvalid} />
-                    <ModelSelector model={openRouterModel} setModel={setOpenRouterModel} models={availableModels} disabled={!openRouterApiKey || availableModels.length === 0} />
+                    
+                    <div>
+                      <div className="flex justify-between items-center">
+                        <label htmlFor="model-selector-input" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          モデル
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">おすすめ:</span>
+                          <button
+                            onClick={() => setOpenRouterModel('openai/gpt-5-mini')}
+                            className={`px-2 py-0.5 text-xs font-medium rounded-full border transition-colors ${
+                              openRouterModel === 'openai/gpt-5-mini'
+                                ? 'bg-primary-600 border-primary-600 text-white'
+                                : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            OpenAI: GPT-5 Mini
+                          </button>
+                          <button
+                            onClick={() => setOpenRouterModel('google/gemini-2.5-flash')}
+                            className={`px-2 py-0.5 text-xs font-medium rounded-full border transition-colors ${
+                              openRouterModel === 'google/gemini-2.5-flash'
+                                ? 'bg-primary-600 border-primary-600 text-white'
+                                : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            Google: Gemini 2.5 Flash
+                          </button>
+                        </div>
+                      </div>
+                      <ModelSelector model={openRouterModel} setModel={setOpenRouterModel} models={availableModels} disabled={!openRouterApiKey || availableModels.length === 0} />
+                    </div>
+
                     <ModelInfoDisplay model={selectedOpenRouterModel} />
                      {selectedOpenRouterModel?.supports_thinking && (
                       <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
@@ -757,16 +790,6 @@ export default function App() {
                 )}
               </div>
             </div>
-            
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8 space-y-8">
-              <div className="space-y-6">
-                <h2 className="text-xl font-bold border-b pb-2 border-gray-200 dark:border-gray-700">アップロード</h2>
-                <FileUpload onFileSelect={(file) => { setPdfFile(file); setAnalysisHistory([]); setQuestionsMap({}); setAnsweredQuestionsMap({}); setError(''); }} />
-              </div>
-              <button onClick={handleAnalysis} disabled={isAnalyzeDisabled} className="w-full flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all transform hover:scale-105 disabled:scale-100">
-                {isLoading ? ( <><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>{progressMessage || '解析中...'}</span></> ) : ( <><WandSparklesIcon className="h-5 w-5" /><span>ドキュメントを解析</span></> )}
-              </button>
-            </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
                 <CollapsibleSection title="AI設定">
@@ -781,6 +804,44 @@ export default function App() {
                   />
                 </CollapsibleSection>
             </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8 space-y-8">
+              <div className="space-y-6">
+                <h2 className="text-xl font-bold border-b pb-2 border-gray-200 dark:border-gray-700">アップロード</h2>
+                <FileUpload onFileSelect={(file) => {
+                  setPdfFile(file);
+                  setAnalysisHistory([]);
+                  setQuestionsMap({});
+                  setAnsweredQuestionsMap({});
+                  setError('');
+                  if (file) {
+                    setIsPdfPreviewOpen(true);
+                  } else {
+                    setIsPdfPreviewOpen(false);
+                  }
+                }} />
+              </div>
+              <button onClick={handleAnalysis} disabled={isAnalyzeDisabled} className="w-full flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all transform hover:scale-105 disabled:scale-100">
+                {isLoading ? ( <><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>{progressMessage || '解析中...'}</span></> ) : ( <><WandSparklesIcon className="h-5 w-5" /><span>ドキュメントを解析</span></> )}
+              </button>
+            </div>
+
+            <div className="xl:sticky xl:top-8 z-10">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+                <CollapsibleSection
+                  isOpen={isPdfPreviewOpen}
+                  onToggle={() => setIsPdfPreviewOpen(prev => !prev)}
+                  title={
+                    <span className="flex items-center gap-2">
+                      <BookOpenIcon className="h-6 w-6" />
+                      <span>PDFプレビュー</span>
+                    </span>
+                  }>
+                  <PdfPreview file={pdfFile} />
+                </CollapsibleSection>
+              </div>
+            </div>
+
           </div>
 
           {/* --- Right Column: Output --- */}

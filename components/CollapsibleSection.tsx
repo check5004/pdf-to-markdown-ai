@@ -4,15 +4,29 @@ import { ChevronDownIcon } from './Icons';
 interface CollapsibleSectionProps {
   title: ReactNode;
   children: ReactNode;
+  isOpen?: boolean;
+  onToggle?: () => void;
 }
 
-const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, children }) => {
-  const [isOpen, setIsOpen] = useState(false);
+const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, children, isOpen: controlledIsOpen, onToggle }) => {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+
+  const isControlled = controlledIsOpen !== undefined && onToggle !== undefined;
+  const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
+
+  const handleToggle = () => {
+    if (isControlled) {
+      onToggle();
+    } else {
+      setInternalIsOpen(prev => !prev);
+    }
+  };
+
 
   return (
     <div>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className="w-full flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
         aria-expanded={isOpen}
       >
