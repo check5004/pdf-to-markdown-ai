@@ -213,7 +213,8 @@ export const generateClarificationQuestionsWithOpenRouter = async (
   apiKey: string,
   systemInstruction: string,
   userPrompt: string,
-  temperature: number
+  temperature: number,
+  isThinkingEnabled?: boolean
 ): Promise<{ questions: Question[]; debug: { request: any; response: any; }; usage: UsageInfo | null; }> => {
   const fullPrompt = `${userPrompt}
   レスポンスは以下のJSON形式のみで出力してください。他のテキストは含めないでください。
@@ -249,6 +250,10 @@ export const generateClarificationQuestionsWithOpenRouter = async (
       temperature: temperature,
       response_format: { "type": "json_object" },
   };
+  
+  if (isThinkingEnabled) {
+    body.transforms = ["middle-out"];
+  }
 
   try {
     const response = await fetch(`${API_BASE_URL}/chat/completions`, {

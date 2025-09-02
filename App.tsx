@@ -69,6 +69,12 @@ const DEFAULT_REFINE_PERSONA_PROMPT = `あなたは、極めて慎重かつ優�
 3.  **情報を省略しない:** 元のドキュメントに含まれている情報を、あなたの判断で省略したり、要約したりしないでください。出力は、質疑応答の内容を反映した「完全な」ドキュメントでなければなりません。
 4.  **「マージ」の意識を持つ:** あなたの仕事は、ゼロから文章を書き直すことではなく、既存のドキュメントに新しい情報を「統合（マージ）」することです。「未確定事項」が回答によって確定した場合、その箇所を新しい情報で置き換えてください。既存の記述を補足する回答であれば、その内容を自然な形で追記してください。
 
+**改良後のドキュメントの最終レビューと「未確定事項」の抽出（より厳格な基準で実施）:**
+- 質疑応答の内容を反映させた後、ドキュメント全体を再度レビューしてください。
+- **致命的な矛盾点の検出:** 変更を加えた結果、新たに生じた矛盾や、依然として解消されていない重大な矛盾点のみを特定します。軽微な表現の揺れは無視してください。
+- **中核機能における曖昧さの特定:** システムの根幹に関わる部分で、設計の意図が複数に解釈できてしまうような、極めて重要な曖昧さだけを指摘してください。
+- 上記の厳格なレビューで発見された、**これ以上作業を進める上で絶対に明確化が必要な項目**のみを、ドキュメントの末尾に「## 未確定事項」セクションを設けてリストアップしてください。
+
 出力は、改良後の完全なMarkdownドキュメント全体のみとし、絶対に全体をコードブロック（\`\`\`）で囲まないでください。`;
 const DEFAULT_REFINE_USER_PROMPT = "以前生成した以下のMarkdownドキュメントがあります。後続の「質疑応答」の内容を完全に反映させ、ドキュメントを改良してください。変更点だけでなく、改良後の完全なMarkdownドキュメント全体を出力してください。";
 const DEFAULT_REFINE_TEMPERATURE = 0.4;
@@ -496,7 +502,9 @@ export default function App() {
       if (mode === Mode.GEMINI) {
         result = await generateClarificationQuestions(sourceResult.markdown, qgPersonaPrompt, qgUserPrompt, qgTemperature);
       } else {
-        result = await generateClarificationQuestionsWithOpenRouter(sourceResult.markdown, qgOpenRouterModel, openRouterApiKey, qgPersonaPrompt, qgUserPrompt, qgTemperature);
+        const selectedQgModel = availableModels.find(m => m.id === qgOpenRouterModel);
+        const isThinkingOn = !!(selectedQgModel?.supports_thinking && isThinkingEnabled);
+        result = await generateClarificationQuestionsWithOpenRouter(sourceResult.markdown, qgOpenRouterModel, openRouterApiKey, qgPersonaPrompt, qgUserPrompt, qgTemperature, isThinkingOn);
       }
       setQuestionsMap(prev => ({ ...prev, [sourceResultId]: result.questions }));
     } catch (err: any) {
@@ -504,7 +512,7 @@ export default function App() {
     } finally {
       setIsGeneratingQuestions(false);
     }
-  }, [analysisHistory, mode, openRouterApiKey, qgOpenRouterModel, qgPersonaPrompt, qgUserPrompt, qgTemperature, setQuestionsMap]);
+  }, [analysisHistory, mode, openRouterApiKey, qgOpenRouterModel, qgPersonaPrompt, qgUserPrompt, qgTemperature, setQuestionsMap, availableModels, isThinkingEnabled]);
 
   const handleRefineDocument = useCallback(async (sourceResultId: string, answeredQuestions: Question[]) => {
     if (!sourceResultId || !pdfFile) return;
