@@ -195,8 +195,22 @@ ${extractedText}
       cost: cost, // Use the fetched cost
     } : null;
 
+    // Sanitize debug payload to avoid storing large base64 strings in localStorage
+    const sanitizedBody = JSON.parse(JSON.stringify(body)); // Deep copy
+    if (sanitizedBody.messages) {
+      sanitizedBody.messages.forEach((message: any) => {
+        if (message.role === 'user' && Array.isArray(message.content)) {
+          message.content.forEach((contentPart: any) => {
+            if (contentPart.type === 'image_url' && contentPart.image_url && contentPart.image_url.url) {
+              contentPart.image_url.url = contentPart.image_url.url.substring(0, 100) + '... [TRUNCATED]';
+            }
+          });
+        }
+      });
+    }
+
     if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
-      return { result: data.choices[0].message.content, debug: { request: body, response: data, generationResponse: generationData }, usage };
+      return { result: data.choices[0].message.content, debug: { request: sanitizedBody, response: data, generationResponse: generationData }, usage };
     } else {
       throw new Error('OpenRouter APIからの無効な応答構造です。');
     }
@@ -218,6 +232,7 @@ export const generateClarificationQuestionsWithOpenRouter = async (
 ): Promise<{ questions: Question[]; debug: { request: any; response: any; }; usage: UsageInfo | null; }> => {
   const fullPrompt = `${userPrompt}
   レスポンスは以下のJSON形式のみで出力してください。他のテキストは含めないでください。
+  **重要: JSON文字列内のダブルクォートは \\" のように、必ずエスケープしてください。**
   \`\`\`json
   {
     "questions": [
@@ -268,29 +283,65 @@ export const generateClarificationQuestionsWithOpenRouter = async (
     }
     
     const data = await response.json();
-    const content = data.choices[0]?.message?.content;
+    let content = data.choices[0]?.message?.content;
     if (!content) throw new Error('APIからの応答にコンテンツが含まれていません。');
     
-    const parsed = JSON.parse(content);
-    if (!parsed.questions || !Array.isArray(parsed.questions)) {
-      throw new Error("AIの応答が予期した形式（questions配列）ではありません。");
+    // --- Robust JSON parsing ---
+    // The model might return JSON wrapped in markdown or with extra text.
+    // Find the start and end of the main JSON structure (object or array).
+    const firstBrace = content.indexOf('{');
+    const lastBrace = content.lastIndexOf('}');
+    const firstBracket = content.indexOf('[');
+    const lastBracket = content.lastIndexOf(']');
+
+    let jsonString = '';
+
+    // Prioritize object extraction, as it's the primary expected format.
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+        jsonString = content.substring(firstBrace, lastBrace + 1);
+    } else if (firstBracket !== -1 && lastBracket > firstBracket) {
+        // Fallback for cases where only an array is returned.
+        jsonString = content.substring(firstBracket, lastBracket + 1);
+    } else {
+        throw new Error("AIの応答に有効なJSONオブジェクトまたは配列が含まれていません。");
     }
 
-    const questions: Question[] = parsed.questions.map((q: any) => ({
-      id: self.crypto.randomUUID(),
-      question: q.question,
-      answer: '',
-      suggestions: q.suggestions || []
-    })).filter(q => q.question);
+    try {
+        let parsed = JSON.parse(jsonString);
 
-    const usage: UsageInfo | null = data.usage ? {
-      prompt_tokens: data.usage.prompt_tokens || 0,
-      completion_tokens: data.usage.completion_tokens || 0,
-      total_tokens: data.usage.total_tokens || 0,
-      cost: 0, 
-    } : null;
+        // If the parsed result is an array, wrap it in the expected object structure.
+        if (Array.isArray(parsed)) {
+            parsed = { questions: parsed };
+        }
 
-    return { questions, debug: { request: body, response: data }, usage };
+        if (!parsed.questions || !Array.isArray(parsed.questions)) {
+          throw new Error("AIの応答が予期した形式（questions配列）ではありません。");
+        }
+
+        const questions: Question[] = parsed.questions.map((q: any) => ({
+          id: self.crypto.randomUUID(),
+          question: q.question,
+          answer: '',
+          suggestions: q.suggestions || []
+        })).filter(q => q.question);
+
+        const usage: UsageInfo | null = data.usage ? {
+          prompt_tokens: data.usage.prompt_tokens || 0,
+          completion_tokens: data.usage.completion_tokens || 0,
+          total_tokens: data.usage.total_tokens || 0,
+          cost: 0, 
+        } : null;
+
+        return { questions, debug: { request: body, response: data }, usage };
+    } catch (parseError) {
+        console.error("Error parsing JSON from OpenRouter:", parseError);
+        console.error("Cleaned content that failed parsing:", jsonString);
+        console.error("Original content from API:", data.choices[0]?.message?.content);
+        if (parseError instanceof SyntaxError) {
+             throw new Error(`OpenRouterからの応答が不正なJSON形式でした。モデルが生成したJSONの構文に誤りがあります。(${parseError.message})`);
+        }
+        throw parseError;
+    }
     
   } catch (error) {
     console.error("Error calling OpenRouter API for question generation:", error);

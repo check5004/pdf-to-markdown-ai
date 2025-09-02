@@ -1,17 +1,20 @@
-
 import React, { useState, useEffect } from 'react';
 import { Question } from '../types';
-import { WandSparklesIcon, ChevronDownIcon } from './Icons';
+import { WandSparklesIcon, ChevronDownIcon, InformationCircleIcon } from './Icons';
 
 interface ClarificationPanelProps {
   questions: Question[];
   answeredQuestions?: Question[] | null;
-  onAnswersSubmit: (answeredQuestions: Question[]) => void;
+  initialCustomInstructions?: string;
+  onAnswersSubmit: (answeredQuestions: Question[], customInstructions: string) => void;
   isRefining: boolean;
 }
 
-const ClarificationPanel: React.FC<ClarificationPanelProps> = ({ questions, answeredQuestions, onAnswersSubmit, isRefining }) => {
+const IGNORE_TEXT = 'この質問は無関係、あるいはAIの誤解に基づいているため、今回の修正では無視してください。元のドキュメントのこの部分について、変更は不要です。';
+
+const ClarificationPanel: React.FC<ClarificationPanelProps> = ({ questions, answeredQuestions, initialCustomInstructions, onAnswersSubmit, isRefining }) => {
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [customInstructions, setCustomInstructions] = useState('');
   const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
@@ -21,7 +24,8 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({ questions, answ
       initialAnswers[q.id] = q.answer || '';
     });
     setAnswers(initialAnswers);
-  }, [questions, answeredQuestions]);
+    setCustomInstructions(initialCustomInstructions || '');
+  }, [questions, answeredQuestions, initialCustomInstructions]);
   
   useEffect(() => {
     if (isRefining) {
@@ -38,7 +42,7 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({ questions, answ
       ...q,
       answer: answers[q.id] || '',
     }));
-    onAnswersSubmit(answeredQuestions);
+    onAnswersSubmit(answeredQuestions, customInstructions);
   };
   
   const allQuestionsAnswered = questions.every(q => (answers[q.id] || '').trim() !== '');
@@ -78,6 +82,12 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({ questions, answ
           <p className="text-sm text-blue-700 dark:text-blue-300">
             AIがドキュメントをより正確に理解するために、以下の点について追記・修正してください。
           </p>
+          <div className="flex items-start gap-2 p-3 text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-md dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-700">
+              <InformationCircleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+              <div>
+                  <strong>ヒント:</strong> AIの質問が的を射ていない場合や、修正が不要な場合は「<span className="font-mono bg-yellow-200 dark:bg-yellow-700/50 px-1 rounded">無視する</span>」チップを選択してください。これにより、AIにその質問が無関係であったことを伝え、変更を行わないように指示できます。
+              </div>
+          </div>
           <div className="space-y-6">
             {questions.map((q, index) => (
               <div key={q.id}>
@@ -92,23 +102,49 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({ questions, answ
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-800 dark:border-gray-500 dark:text-white"
                   placeholder="回答を入力..."
                 />
-                {q.suggestions && q.suggestions.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {q.suggestions.map((suggestion, sIndex) => (
-                      <button
-                        key={sIndex}
-                        onClick={() => handleAnswerChange(q.id, suggestion)}
-                        className="px-3 py-1 text-xs font-medium text-primary-800 bg-primary-100 rounded-full hover:bg-primary-200 dark:bg-primary-900/50 dark:text-primary-200 dark:hover:bg-primary-900/80 transition-colors"
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleAnswerChange(q.id, IGNORE_TEXT)}
+                    className="px-3 py-1 text-xs font-medium text-yellow-800 bg-yellow-200 rounded-full hover:bg-yellow-300 dark:bg-yellow-800 dark:text-yellow-100 dark:hover:bg-yellow-700 transition-colors"
+                    title="AIの質問が不適切、または無関係である場合に選択します。"
+                  >
+                    無視する
+                  </button>
+                  {q.suggestions && q.suggestions.map((suggestion, sIndex) => (
+                    <button
+                      key={sIndex}
+                      onClick={() => handleAnswerChange(q.id, suggestion)}
+                      className="px-3 py-1 text-xs font-medium text-primary-800 bg-primary-100 rounded-full hover:bg-primary-200 dark:bg-primary-900/50 dark:text-primary-200 dark:hover:bg-primary-900/80 transition-colors"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
-          <div className="flex justify-end">
+          
+          <div className="pt-6 border-t border-blue-200 dark:border-blue-800">
+            <label htmlFor="custom-instructions" className="block text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">
+              追加の修正指示 (任意)
+            </label>
+            <textarea
+              id="custom-instructions"
+              rows={4}
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-800 dark:border-gray-500 dark:text-white"
+              placeholder="AIからの質問以外に、修正・追加したい点を具体的に指示してください。例:「セクション3.1の『〇〇』を『△△』に変更してください。」"
+            />
+             <div className="mt-2 flex items-start gap-2 p-3 text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-md dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-700">
+                <InformationCircleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                <div>
+                    <strong>ヒント:</strong> AIからの質問ではカバーしきれない、より具体的な修正や追加したい内容を自由にご記入ください。ここでの指示は、AIへの質問への回答よりも優先されます。
+                </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4">
             <button
               onClick={handleSubmit}
               disabled={isRefining}

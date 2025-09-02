@@ -61,16 +61,18 @@ const DEFAULT_QG_PERSONA_PROMPT = `あなたは、経験豊富なITコンサル�
 const DEFAULT_QG_USER_PROMPT = "以下のMarkdownドキュメントを読み、「未確定事項」としてリストアップされている各項目を、ユーザーが回答しやすい明確な質問形式に変換してください。さらに、各質問に対して、ユーザーが選択できる簡潔な回答の候補（サジェスト）を1〜3個生成してください。もし「未確定事項」セクションがない、あるいは項目が空の場合は、ドキュメント全体から内容を明確化するためにユーザーに尋ねるべき質問と、それに対する回答のサジェストを生成してください。";
 const DEFAULT_QG_TEMPERATURE = 0.7;
 
-const DEFAULT_REFINE_PERSONA_PROMPT = `あなたは、極めて慎重かつ優秀なテクニカルエディターです。あなたの唯一の使命は、提供された「元のドキュメント」と「質疑応答」の内容を使い、元のドキュメントを正確に改良することです。創造的な作業は一切行わず、与えられた情報のみを忠実に統合してください。
+const DEFAULT_REFINE_PERSONA_PROMPT = `あなたは、極めて慎重かつ優秀なテクニカルエディターです。あなたの唯一の使命は、提供された「元のドキュメント」、「質疑応答」、そして「追加の修正指示」の内容を使い、元のドキュメントを正確に改良することです。創造的な作業は一切行わず、与えられた情報のみを忠実に統合してください。
 
 **最重要原則（絶対に遵守してください）:**
-1.  **原型を維持する:** 元のドキュメントの見出し構造、セクションの順序、段落の構成を最大限維持してください。質疑応答の内容を反映させるために必要な最小限の変更に留めてください。独自の判断でセクションを再編成したり、新しいセクションを追加したりしないでください。
-2.  **変更箇所を限定する:** あなたが行う変更は、提供された「質疑応答」の内容に直接基づくもののみです。回答で示された情報を、元のドキュメントの適切な箇所に正確に反映させてください。回答にない情報を推測して追記したり、独自の解釈で内容を膨ませたりすることは固く禁じます。
-3.  **情報を省略しない:** 元のドキュメントに含まれている情報を、あなたの判断で省略したり、要約したりしないでください。出力は、質疑応答の内容を反映した「完全な」ドキュメントでなければなりません。
-4.  **「マージ」の意識を持つ:** あなたの仕事は、ゼロから文章を書き直すことではなく、既存のドキュメントに新しい情報を「統合（マージ）」することです。「未確定事項」が回答によって確定した場合、その箇所を新しい情報で置き換えてください。既存の記述を補足する回答であれば、その内容を自然な形で追記してください。
+1.  **原型を維持する:** 元のドキュメントの見出し構造、セクションの順序、段落の構成を最大限維持してください。質疑応答や追加指示の内容を反映させるために必要な最小限の変更に留めてください。独自の判断でセクションを再編成したり、新しいセクションを追加したりしないでください。
+2.  **変更箇所を限定する:** あなたが行う変更は、提供された「質疑応答」および、もし存在すれば「追加の修正指示」の内容に直接基づくもののみです。回答や指示で示された情報を、元のドキュメントの適切な箇所に正確に反映させてください。回答や指示にない情報を推測して追記したり、独自の解釈で内容を膨ませたりすることは固く禁じます。
+3.  **指示の優先順位:** 「追加の修正指示」はユーザーからの最優先事項です。もし「質疑応答」の内容と「追加の修正指示」の内容が矛盾する場合は、「追加の修正指示」を絶対的に優先してください。
+4.  **情報を省略しない:** 元のドキュメントに含まれている情報を、あなたの判断で省略したり、要約したりしないでください。出力は、質疑応答や追加指示の内容を反映した「完全な」ドキュメントでなければなりません。
+5.  **「マージ」の意識を持つ:** あなたの仕事は、ゼロから文章を書き直すことではなく、既存のドキュメントに新しい情報を「統合（マージ）」することです。「未確定事項」が回答によって確定した場合、その箇所を新しい情報で置き換えてください。既存の記述を補足する回答であれば、その内容を自然な形で追記してください。
+6.  **「無視」の指示を尊重する:** 質疑応答の中で、回答が「この質問は無関係、あるいはAIの誤解に基づいているため...」といった内容の場合、それはユーザーからの「変更不要」の明確な指示です。その質問に関連する元のドキュメントの箇所は、絶対に一切変更しないでください。
 
 **改良後のドキュメントの最終レビューと「未確定事項」の抽出（より厳格な基準で実施）:**
-- 質疑応答の内容を反映させた後、ドキュメント全体を再度レビューしてください。
+- 質疑応答と追加指示の内容を反映させた後、ドキュメント全体を再度レビューしてください。
 - **致命的な矛盾点の検出:** 変更を加えた結果、新たに生じた矛盾や、依然として解消されていない重大な矛盾点のみを特定します。軽微な表現の揺れは無視してください。
 - **中核機能における曖昧さの特定:** システムの根幹に関わる部分で、設計の意図が複数に解釈できてしまうような、極めて重要な曖昧さだけを指摘してください。
 - 上記の厳格なレビューで発見された、**これ以上作業を進める上で絶対に明確化が必要な項目**のみを、ドキュメントの末尾に「## 未確定事項」セクションを設けてリストアップしてください。
@@ -253,6 +255,7 @@ export default function App() {
   const [analysisHistory, setAnalysisHistory] = useLocalStorage<AnalysisResult[]>('doc-converter-analysis-history', []);
   const [questionsMap, setQuestionsMap] = useLocalStorage<Record<string, Question[]>>('doc-converter-questions-map', {});
   const [answeredQuestionsMap, setAnsweredQuestionsMap] = useLocalStorage<Record<string, Question[]>>('doc-converter-answered-questions-map', {});
+  const [customInstructionsMap, setCustomInstructionsMap] = useLocalStorage<Record<string, string>>('doc-converter-custom-instructions-map', {});
 
   // Loading and error states
   const [isLoading, setIsLoading] = useState<boolean>(false); // For initial analysis
@@ -444,6 +447,7 @@ export default function App() {
     setAnalysisHistory([]);
     setQuestionsMap({});
     setAnsweredQuestionsMap({});
+    setCustomInstructionsMap({});
 
     try {
       setProgressMessage('PDFファイルを読み込んでいます...');
@@ -508,7 +512,7 @@ export default function App() {
       setIsLoading(false);
       setProgressMessage('');
     }
-  }, [pdfFile, mode, analysisMode, openRouterApiKey, openRouterModel, personaPrompt, userPrompt, temperature, selectedOpenRouterModel, isThinkingEnabled, isGeminiAvailable, isAuthorized, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap]);
+  }, [pdfFile, mode, analysisMode, openRouterApiKey, openRouterModel, personaPrompt, userPrompt, temperature, selectedOpenRouterModel, isThinkingEnabled, isGeminiAvailable, isAuthorized, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap]);
 
   const handleGenerateQuestions = useCallback(async (sourceResultId: string) => {
     const sourceResult = analysisHistory.find(r => r.id === sourceResultId);
@@ -534,7 +538,7 @@ export default function App() {
     }
   }, [analysisHistory, mode, openRouterApiKey, qgOpenRouterModel, qgPersonaPrompt, qgUserPrompt, qgTemperature, setQuestionsMap, availableModels, isThinkingEnabled]);
 
-  const handleRefineDocument = useCallback(async (sourceResultId: string, answeredQuestions: Question[]) => {
+  const handleRefineDocument = useCallback(async (sourceResultId: string, answeredQuestions: Question[], customInstructions: string) => {
     if (!sourceResultId || !pdfFile) return;
     
     const sourceDocIndex = analysisHistory.findIndex(r => r.id === sourceResultId);
@@ -548,6 +552,7 @@ export default function App() {
     let newHistory = [...analysisHistory];
     let newQuestionsMap = {...questionsMap};
     let newAnsweredMap = {...answeredQuestionsMap};
+    let newCustomInstructionsMap = {...customInstructionsMap};
     
     const nextResultIndex = sourceDocIndex + 1;
     if (newHistory.length > nextResultIndex) {
@@ -556,17 +561,23 @@ export default function App() {
         idsToRemove.forEach(id => {
             delete newQuestionsMap[id];
             delete newAnsweredMap[id];
+            delete newCustomInstructionsMap[id];
         });
     }
     newAnsweredMap[sourceResultId] = answeredQuestions;
+    newCustomInstructionsMap[sourceResultId] = customInstructions;
 
     setAnalysisHistory(newHistory);
     setQuestionsMap(newQuestionsMap);
     setAnsweredQuestionsMap(newAnsweredMap);
+    setCustomInstructionsMap(newCustomInstructionsMap);
     // --- End History Truncation ---
 
     const qaString = answeredQuestions.map(q => `Q: ${q.question}\nA: ${q.answer || '(回答なし)'}`).join('\n\n');
-    const fullRefineUserPrompt = `${refineUserPrompt}\n\n# 元のドキュメント\n\`\`\`markdown\n${sourceDocument.markdown}\n\`\`\`\n\n# 質疑応答\n${qaString}`;
+    const customInstructionsString = customInstructions.trim()
+      ? `\n\n# 追加の修正指示\n${customInstructions}`
+      : '';
+    const fullRefineUserPrompt = `${refineUserPrompt}\n\n# 元のドキュメント\n\`\`\`markdown\n${sourceDocument.markdown}\n\`\`\`\n\n# 質疑応答\n${qaString}${customInstructionsString}`;
 
     setIsRefining(true);
     setLatestRefiningSourceId(sourceResultId);
@@ -631,7 +642,7 @@ export default function App() {
       setProgressMessage('');
     }
 
-  }, [analysisHistory, pdfFile, analysisMode, mode, openRouterApiKey, refineOpenRouterModel, refinePersonaPrompt, refineUserPrompt, refineTemperature, availableModels, isThinkingEnabled, questionsMap, answeredQuestionsMap, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap]);
+  }, [analysisHistory, pdfFile, analysisMode, mode, openRouterApiKey, refineOpenRouterModel, refinePersonaPrompt, refineUserPrompt, refineTemperature, availableModels, isThinkingEnabled, questionsMap, answeredQuestionsMap, customInstructionsMap, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap]);
   
   const handleDownload = useCallback((markdown: string) => {
     if (!markdown) return;
@@ -813,6 +824,7 @@ export default function App() {
                   setAnalysisHistory([]);
                   setQuestionsMap({});
                   setAnsweredQuestionsMap({});
+                  setCustomInstructionsMap({});
                   setError('');
                   if (file) {
                     setIsPdfPreviewOpen(true);
@@ -867,6 +879,7 @@ export default function App() {
                 const isLatestResult = index === analysisHistory.length - 1;
                 const questionsForThisResult = questionsMap[result.id];
                 const answeredQuestionsForThisResult = answeredQuestionsMap[result.id];
+                const customInstructionsForThisResult = customInstructionsMap[result.id];
                 const isCurrentlyRefiningFromThis = isRefining && latestRefiningSourceId === result.id;
                 const isCurrentlyGeneratingQuestions = isGeneratingQuestions && isLatestResult && !questionsForThisResult;
 
@@ -883,7 +896,8 @@ export default function App() {
                         key={`questions-${result.id}`}
                         questions={questionsForThisResult}
                         answeredQuestions={answeredQuestionsForThisResult}
-                        onAnswersSubmit={(answeredQuestions) => handleRefineDocument(result.id, answeredQuestions)}
+                        initialCustomInstructions={customInstructionsForThisResult}
+                        onAnswersSubmit={(answeredQuestions, customInstructions) => handleRefineDocument(result.id, answeredQuestions, customInstructions)}
                         isRefining={isCurrentlyRefiningFromThis}
                       />
                     )}

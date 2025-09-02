@@ -54,7 +54,17 @@ ${extractedText}
   try {
     const response = await ai.models.generateContent(payload);
     
-    return { result: response.text, debug: { request: payload, response: response }, usage: null };
+    // Sanitize debug payload to avoid storing large base64 strings in localStorage
+    const sanitizedPayload = JSON.parse(JSON.stringify(payload)); // Deep copy
+    if (sanitizedPayload.contents && sanitizedPayload.contents.parts) {
+      sanitizedPayload.contents.parts.forEach((part: any) => {
+        if (part.inlineData && part.inlineData.data) {
+          part.inlineData.data = part.inlineData.data.substring(0, 100) + '... [TRUNCATED]';
+        }
+      });
+    }
+    
+    return { result: response.text, debug: { request: sanitizedPayload, response: response }, usage: null };
 
   } catch (error) {
     console.error("Error calling Gemini API:", error);
