@@ -18,7 +18,7 @@ import UsageInfoDisplay from './components/UsageInfoDisplay';
 import ThinkingModeSwitcher from './components/ThinkingModeSwitcher';
 import GeminiAuth from './components/GeminiAuth';
 import ClarificationPanel from './components/ClarificationPanel';
-import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon, SparklesIcon } from './components/Icons';
+import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon, SparklesIcon, BugAntIcon } from './components/Icons';
 import { msalConfig, loginRequest, AUTHORIZED_DOMAIN } from './authConfig';
 
 
@@ -245,6 +245,7 @@ export default function App() {
   const [availableModels, setAvailableModels] = useState<OpenRouterModel[]>([]);
   const [isFreeModelSelected, setIsFreeModelSelected] = useState<boolean>(false);
   const [isThinkingEnabled, setIsThinkingEnabled] = useLocalStorage<boolean>('thinking-enabled', true);
+  const [userManuallySetRefineModel, setUserManuallySetRefineModel] = useLocalStorage<boolean>('user-manually-set-refine-model', false);
 
   // File and results state
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -272,7 +273,7 @@ export default function App() {
   const [selectedPresetId, setSelectedPresetId] = useLocalStorage<string>('ai-selected-preset-id', 'default');
   
   // 2. Question Generation
-  const [qgOpenRouterModel, setQgOpenRouterModel] = useLocalStorage<string>('qg-openrouter-model', 'google/gemini-2.5-flash-lite');
+  const [qgOpenRouterModel, setQgOpenRouterModel] = useLocalStorage<string>('qg-openrouter-model', 'google/gemini-2.5-flash');
   const [qgPersonaPrompt, setQgPersonaPrompt] = useLocalStorage<string>('qg-persona-prompt', DEFAULT_QG_PERSONA_PROMPT);
   const [qgUserPrompt, setQgUserPrompt] = useLocalStorage<string>('qg-user-prompt', DEFAULT_QG_USER_PROMPT);
   const [qgTemperature, setQgTemperature] = useLocalStorage<number>('qg-temperature', DEFAULT_QG_TEMPERATURE);
@@ -292,6 +293,18 @@ export default function App() {
   const [account, setAccount] = useState<any | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+  // Sync refinement model with main model if it hasn't been manually changed
+  useEffect(() => {
+    if (!userManuallySetRefineModel) {
+      setRefineOpenRouterModel(openRouterModel);
+    }
+  }, [openRouterModel, userManuallySetRefineModel, setRefineOpenRouterModel]);
+
+  const handleRefineModelChange = (modelId: string) => {
+    setUserManuallySetRefineModel(true);
+    setRefineOpenRouterModel(modelId);
+  };
 
   useEffect(() => {
     const initializeMsal = async () => {
@@ -397,9 +410,15 @@ export default function App() {
     if (availableModels.length > 0) {
       if (!availableModels.some(m => m.id === openRouterModel)) setOpenRouterModel(availableModels[0].id);
       if (!availableModels.some(m => m.id === qgOpenRouterModel)) setQgOpenRouterModel(availableModels[0].id);
-      if (!availableModels.some(m => m.id === refineOpenRouterModel)) setRefineOpenRouterModel(availableModels[0].id);
+      if (!availableModels.some(m => m.id === refineOpenRouterModel)) {
+        if (!userManuallySetRefineModel) {
+            setRefineOpenRouterModel(openRouterModel);
+        } else {
+            setRefineOpenRouterModel(availableModels[0].id);
+        }
+      }
     }
-  }, [availableModels, openRouterModel, qgOpenRouterModel, refineOpenRouterModel, setOpenRouterModel, setQgOpenRouterModel, setRefineOpenRouterModel]);
+  }, [availableModels, openRouterModel, qgOpenRouterModel, refineOpenRouterModel, setOpenRouterModel, setQgOpenRouterModel, setRefineOpenRouterModel, userManuallySetRefineModel]);
 
   useEffect(() => {
     if (mode === Mode.OPENROUTER && openRouterModel && availableModels.length > 0) {
@@ -754,7 +773,7 @@ export default function App() {
                   <PromptSettings
                     main={{ personaPrompt, setPersonaPrompt, userPrompt, setUserPrompt, temperature, setTemperature, presets, selectedPresetId, ...mainPresetHandlers, openRouterModel }}
                     qg={{ personaPrompt: qgPersonaPrompt, setPersonaPrompt: setQgPersonaPrompt, userPrompt: qgUserPrompt, setUserPrompt: setQgUserPrompt, temperature: qgTemperature, setTemperature: setQgTemperature, presets: qgPresets, selectedPresetId: selectedQgPresetId, ...qgPresetHandlers, openRouterModel: qgOpenRouterModel, setOpenRouterModel: setQgOpenRouterModel }}
-                    refine={{ personaPrompt: refinePersonaPrompt, setPersonaPrompt: setRefinePersonaPrompt, userPrompt: refineUserPrompt, setUserPrompt: setRefineUserPrompt, temperature: refineTemperature, setTemperature: setRefineTemperature, presets: refinePresets, selectedPresetId: selectedRefinePresetId, ...refinePresetHandlers, openRouterModel: refineOpenRouterModel, setOpenRouterModel: setRefineOpenRouterModel }}
+                    refine={{ personaPrompt: refinePersonaPrompt, setPersonaPrompt: setRefinePersonaPrompt, userPrompt: refineUserPrompt, setUserPrompt: setRefineUserPrompt, temperature: refineTemperature, setTemperature: setRefineTemperature, presets: refinePresets, selectedPresetId: selectedRefinePresetId, ...refinePresetHandlers, openRouterModel: refineOpenRouterModel, setOpenRouterModel: handleRefineModelChange }}
                     mode={mode}
                     isGeminiAvailable={isGeminiAvailable}
                     availableModels={availableModels}
@@ -827,7 +846,18 @@ export default function App() {
         </div>
 
         <footer className="text-center mt-8 text-sm text-gray-500 dark:text-gray-400">
-          <p>React, Tailwind CSS, Gemini, OpenRouter を利用しています。</p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <p>React, Tailwind CSS, Gemini, OpenRouter を利用しています。</p>
+            <a 
+              href="https://forms.gle/97qvaNivZQ84TM1b8" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+              <BugAntIcon className="h-4 w-4" />
+              バグを報告
+            </a>
+          </div>
         </footer>
       </main>
     </div>
