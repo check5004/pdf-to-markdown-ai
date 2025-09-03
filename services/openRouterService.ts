@@ -1,4 +1,3 @@
-
 import type { OpenRouterModel, ModalityType, UsageInfo, Question } from '../types';
 
 const API_BASE_URL = 'https://openrouter.ai/api/v1';
@@ -345,6 +344,65 @@ export const generateClarificationQuestionsWithOpenRouter = async (
     
   } catch (error) {
     console.error("Error calling OpenRouter API for question generation:", error);
+    throw new Error(`OpenRouterからの応答の取得に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+  }
+};
+
+export const generateDiffWithOpenRouter = async (
+  oldMarkdown: string,
+  newMarkdown: string,
+  modelId: string,
+  apiKey: string,
+  systemInstruction: string,
+  userPrompt: string,
+  temperature: number,
+  isThinkingEnabled?: boolean,
+): Promise<{ result: string; debug: { request: any; response: any; }; usage: UsageInfo | null; }> => {
+  const fullPrompt = userPrompt
+    .replace('{OLD_MARKDOWN}', oldMarkdown)
+    .replace('{NEW_MARKDOWN}', newMarkdown);
+  
+  const messages = [
+    { role: 'system', content: systemInstruction },
+    { role: 'user', content: fullPrompt }
+  ];
+
+  const body: any = {
+      model: modelId,
+      messages: messages,
+      temperature: temperature,
+  };
+  
+  if (isThinkingEnabled) {
+    body.transforms = ["middle-out"];
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: { ...createHeaders(apiKey), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData?.error?.message || `HTTPエラー！ステータス: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content;
+    if (!content) throw new Error('APIからの応答にコンテンツが含まれていません。');
+    
+    const usage: UsageInfo | null = data.usage ? {
+      prompt_tokens: data.usage.prompt_tokens || 0,
+      completion_tokens: data.usage.completion_tokens || 0,
+      total_tokens: data.usage.total_tokens || 0,
+      cost: 0,
+    } : null;
+
+    return { result: content, debug: { request: body, response: data }, usage };
+  } catch (error) {
+    console.error("Error calling OpenRouter API for diff generation:", error);
     throw new Error(`OpenRouterからの応答の取得に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
   }
 };

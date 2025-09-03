@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import type { UsageInfo, Question } from "../types";
 
@@ -145,6 +144,43 @@ export const generateClarificationQuestions = async (
 
   } catch (error) {
     console.error("Error calling Gemini API for question generation:", error);
+    if (error instanceof Error) {
+        throw new Error(`Gemini APIからの応答の取得に失敗しました: ${error.message}`);
+    }
+    throw new Error("Gemini APIからの応答の取得に失敗しました。");
+  }
+};
+
+export const generateDiffWithGemini = async (
+  oldMarkdown: string,
+  newMarkdown: string,
+  systemInstruction: string,
+  userPrompt: string,
+  temperature: number,
+): Promise<{ result: string; debug: { request: any; response: any }; usage: UsageInfo | null }> => {
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("Gemini APIキーが設定されていません。");
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  const fullPrompt = userPrompt
+    .replace('{OLD_MARKDOWN}', oldMarkdown)
+    .replace('{NEW_MARKDOWN}', newMarkdown);
+
+  const payload = {
+    model: 'gemini-2.5-flash',
+    contents: fullPrompt,
+    config: {
+      systemInstruction: systemInstruction,
+      temperature: temperature,
+    }
+  };
+
+  try {
+    const response = await ai.models.generateContent(payload);
+    return { result: response.text, debug: { request: payload, response }, usage: null };
+  } catch (error) {
+    console.error("Error calling Gemini API for diff generation:", error);
     if (error instanceof Error) {
         throw new Error(`Gemini APIからの応答の取得に失敗しました: ${error.message}`);
     }

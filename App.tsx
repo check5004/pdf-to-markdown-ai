@@ -2,8 +2,8 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { Mode, OpenRouterModel, PromptPreset, AnalysisMode, UsageInfo, Question, AnalysisResult } from './types';
 import useLocalStorage from './hooks/useLocalStorage';
-import { analyzeDocumentWithGemini, generateClarificationQuestions } from './services/geminiService';
-import { analyzeDocumentWithOpenRouter, fetchModels, generateClarificationQuestionsWithOpenRouter } from './services/openRouterService';
+import { analyzeDocumentWithGemini, generateClarificationQuestions, generateDiffWithGemini } from './services/geminiService';
+import { analyzeDocumentWithOpenRouter, fetchModels, generateClarificationQuestionsWithOpenRouter, generateDiffWithOpenRouter } from './services/openRouterService';
 import ModeSwitcher from './components/ModeSwitcher';
 import AnalysisModeSwitcher from './components/AnalysisModeSwitcher';
 import ApiKeyInput from './components/ApiKeyInput';
@@ -17,8 +17,9 @@ import UsageInfoDisplay from './components/UsageInfoDisplay';
 import ThinkingModeSwitcher from './components/ThinkingModeSwitcher';
 import GeminiAuth from './components/GeminiAuth';
 import ClarificationPanel from './components/ClarificationPanel';
+import DiffPanel from './components/DiffPanel';
 import PdfPreview from './components/PdfPreview';
-import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon, SparklesIcon, BugAntIcon } from './components/Icons';
+import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon, SparklesIcon, BugAntIcon, AdjustmentsHorizontalIcon } from './components/Icons';
 import { msalConfig, loginRequest, AUTHORIZED_DOMAIN } from './authConfig';
 
 
@@ -80,6 +81,47 @@ const DEFAULT_REFINE_PERSONA_PROMPT = `あなたは、極めて慎重かつ優�
 出力は、改良後の完全なMarkdownドキュメント全体のみとし、絶対に全体をコードブロック（\`\`\`）で囲まないでください。`;
 const DEFAULT_REFINE_USER_PROMPT = "以前生成した以下のMarkdownドキュメントがあります。後続の「質疑応答」の内容を完全に反映させ、ドキュメントを改良してください。変更点だけでなく、改良後の完全なMarkdownドキュメント全体を出力してください。";
 const DEFAULT_REFINE_TEMPERATURE = 0.4;
+
+const DEFAULT_DIFF_PERSONA_PROMPT = `あなたは、極めて高い精度を持つ設計ドキュメント専門のレビュアーです。あなたの使命は、2つのバージョンの技術ドキュメント（「初期解析版」と「改良版」）を比較し、その間の「意味的な変更点」のみを抽出することです。単なるテキストの差分検出ツールとは異なり、あなたはドキュメントの論理構造と内容を深く理解し、設計仕様に関わる本質的な変更だけを特定します。
+
+**最重要原則:**
+1.  **意味に集中する:** あなたが検出するのは、仕様、要件、制約、データ定義、アルゴリズム、UIの挙動など、システムの振る舞いに影響を与える変更点です。
+2.  **構造変更は無視する:** 見出しのレベルが変わったり、セクションの順序が入れ替わったりしても、その中の意味内容が同じであれば、それは変更点として扱いません。
+3.  **表現の揺れは無視する:** 同じ意味を指す言葉の言い換え（例：「ユーザー」→「利用者」）や、てにをはの修正など、仕様に影響しない軽微な表現の変更は無視してください。
+4.  **網羅性:** 一方で、数値の変更、条件の追加・削除、用語の定義変更など、わずかでも意味内容に変化があれば、それは漏らさずリストアップしなければなりません。
+
+あなたの出力は、元の設計書作成者が「何を修正すればよいか」を明確に理解できる、実用的な修正指示リストでなければなりません。`;
+const DEFAULT_DIFF_USER_PROMPT = `以下の「初期解析版ドキュメント」と「改良版ドキュメント」を詳細に比較してください。
+このタスクの最終目的は、改良によって加えられた【意味のある変更点】をすべて抽出し、元の設計書（PDF）にフィードバックするための具体的な修正項目リストを作成することです。
+
+以下の指示に従い、変更点をMarkdownのチェックリスト形式で要約してください。
+
+- **抽出する変更点:**
+    - 仕様や要件の追加、削除、変更
+    - 数値、パラメータ、制約条件の変更
+    - 「未確定事項」が確定した内容
+    - 曖昧な表現が具体的になった箇所
+    - 矛盾点が修正された内容
+    - 用語の定義や使われ方が明確に変更された箇所
+
+- **無視する変更点:**
+    - 見出しレベルの変更やセクションの移動（内容が同じ場合）
+    - 助詞や語尾の変更など、意味に影響しない軽微な言い回しの修正
+    - 箇条書きの順序変更（論理的な意味が変わらない場合）
+
+各チェックリスト項目は、「どのセクションの」「何が」「どのように変わったか」が明確にわかるように記述してください。変更がない場合は、「意味的な変更点はありません。」とだけ出力してください。
+
+# 初期解析版ドキュメント
+\`\`\`markdown
+{OLD_MARKDOWN}
+\`\`\`
+
+# 改良版ドキュメント
+\`\`\`markdown
+{NEW_MARKDOWN}
+\`\`\`
+`;
+const DEFAULT_DIFF_TEMPERATURE = 0.3;
 
 
 interface ExchangeRateInfo {
@@ -256,12 +298,16 @@ export default function App() {
   const [questionsMap, setQuestionsMap] = useLocalStorage<Record<string, Question[]>>('doc-converter-questions-map', {});
   const [answeredQuestionsMap, setAnsweredQuestionsMap] = useLocalStorage<Record<string, Question[]>>('doc-converter-answered-questions-map', {});
   const [customInstructionsMap, setCustomInstructionsMap] = useLocalStorage<Record<string, string>>('doc-converter-custom-instructions-map', {});
+  const [diffMap, setDiffMap] = useLocalStorage<Record<string, string>>('doc-converter-diff-map', {});
+
 
   // Loading and error states
   const [isLoading, setIsLoading] = useState<boolean>(false); // For initial analysis
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState<boolean>(false);
   const [isRefining, setIsRefining] = useState<boolean>(false);
+  const [isGeneratingDiff, setIsGeneratingDiff] = useState<boolean>(false);
   const [latestRefiningSourceId, setLatestRefiningSourceId] = useState<string | null>(null);
+  const [latestDiffingSourceId, setLatestDiffingSourceId] = useState<string | null>(null);
   const [error, setError] = useState<string>('');
   const [progressMessage, setProgressMessage] = useState<string>('');
   
@@ -291,6 +337,14 @@ export default function App() {
   const [refineTemperature, setRefineTemperature] = useLocalStorage<number>('refine-temperature', DEFAULT_REFINE_TEMPERATURE);
   const [refinePresets, setRefinePresets] = useLocalStorage<PromptPreset[]>('refine-presets', []);
   const [selectedRefinePresetId, setSelectedRefinePresetId] = useLocalStorage<string>('refine-selected-preset-id', 'default');
+  
+  // 4. Diff Generation
+  const [diffOpenRouterModel, setDiffOpenRouterModel] = useLocalStorage<string>('diff-openrouter-model', 'google/gemini-2.5-flash');
+  const [diffPersonaPrompt, setDiffPersonaPrompt] = useLocalStorage<string>('diff-persona-prompt', DEFAULT_DIFF_PERSONA_PROMPT);
+  const [diffUserPrompt, setDiffUserPrompt] = useLocalStorage<string>('diff-user-prompt', DEFAULT_DIFF_USER_PROMPT);
+  const [diffTemperature, setDiffTemperature] = useLocalStorage<number>('diff-temperature', DEFAULT_DIFF_TEMPERATURE);
+  const [diffPresets, setDiffPresets] = useLocalStorage<PromptPreset[]>('diff-presets', []);
+  const [selectedDiffPresetId, setSelectedDiffPresetId] = useLocalStorage<string>('diff-selected-preset-id', 'default');
 
   // MSAL State
   const [msalInstance] = useState(() => new PublicClientApplication(msalConfig));
@@ -421,8 +475,9 @@ export default function App() {
             setRefineOpenRouterModel(availableModels[0].id);
         }
       }
+      if (!availableModels.some(m => m.id === diffOpenRouterModel)) setDiffOpenRouterModel(availableModels[0].id);
     }
-  }, [availableModels, openRouterModel, qgOpenRouterModel, refineOpenRouterModel, setOpenRouterModel, setQgOpenRouterModel, setRefineOpenRouterModel, userManuallySetRefineModel]);
+  }, [availableModels, openRouterModel, qgOpenRouterModel, refineOpenRouterModel, diffOpenRouterModel, setOpenRouterModel, setQgOpenRouterModel, setRefineOpenRouterModel, setDiffOpenRouterModel, userManuallySetRefineModel]);
 
   useEffect(() => {
     if (mode === Mode.OPENROUTER && openRouterModel && availableModels.length > 0) {
@@ -448,6 +503,7 @@ export default function App() {
     setQuestionsMap({});
     setAnsweredQuestionsMap({});
     setCustomInstructionsMap({});
+    setDiffMap({});
 
     try {
       setProgressMessage('PDFファイルを読み込んでいます...');
@@ -512,7 +568,7 @@ export default function App() {
       setIsLoading(false);
       setProgressMessage('');
     }
-  }, [pdfFile, mode, analysisMode, openRouterApiKey, openRouterModel, personaPrompt, userPrompt, temperature, selectedOpenRouterModel, isThinkingEnabled, isGeminiAvailable, isAuthorized, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap]);
+  }, [pdfFile, mode, analysisMode, openRouterApiKey, openRouterModel, personaPrompt, userPrompt, temperature, selectedOpenRouterModel, isThinkingEnabled, isGeminiAvailable, isAuthorized, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap, setDiffMap]);
 
   const handleGenerateQuestions = useCallback(async (sourceResultId: string) => {
     const sourceResult = analysisHistory.find(r => r.id === sourceResultId);
@@ -553,6 +609,7 @@ export default function App() {
     let newQuestionsMap = {...questionsMap};
     let newAnsweredMap = {...answeredQuestionsMap};
     let newCustomInstructionsMap = {...customInstructionsMap};
+    let newDiffMap = {...diffMap};
     
     const nextResultIndex = sourceDocIndex + 1;
     if (newHistory.length > nextResultIndex) {
@@ -562,6 +619,7 @@ export default function App() {
             delete newQuestionsMap[id];
             delete newAnsweredMap[id];
             delete newCustomInstructionsMap[id];
+            delete newDiffMap[id];
         });
     }
     newAnsweredMap[sourceResultId] = answeredQuestions;
@@ -571,6 +629,7 @@ export default function App() {
     setQuestionsMap(newQuestionsMap);
     setAnsweredQuestionsMap(newAnsweredMap);
     setCustomInstructionsMap(newCustomInstructionsMap);
+    setDiffMap(newDiffMap);
     // --- End History Truncation ---
 
     const qaString = answeredQuestions.map(q => `Q: ${q.question}\nA: ${q.answer || '(回答なし)'}`).join('\n\n');
@@ -642,15 +701,47 @@ export default function App() {
       setProgressMessage('');
     }
 
-  }, [analysisHistory, pdfFile, analysisMode, mode, openRouterApiKey, refineOpenRouterModel, refinePersonaPrompt, refineUserPrompt, refineTemperature, availableModels, isThinkingEnabled, questionsMap, answeredQuestionsMap, customInstructionsMap, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap]);
+  }, [analysisHistory, pdfFile, analysisMode, mode, openRouterApiKey, refineOpenRouterModel, refinePersonaPrompt, refineUserPrompt, refineTemperature, availableModels, isThinkingEnabled, questionsMap, answeredQuestionsMap, customInstructionsMap, diffMap, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap, setDiffMap]);
   
-  const handleDownload = useCallback((markdown: string) => {
+  const handleGenerateDiff = useCallback(async (newResultId: string, oldResultId: string) => {
+    const newResult = analysisHistory.find(r => r.id === newResultId);
+    const oldResult = analysisHistory.find(r => r.id === oldResultId);
+
+    if (!newResult || !oldResult) {
+      setError('差分生成の対象となるドキュメントが見つかりませんでした。');
+      return;
+    }
+
+    setIsGeneratingDiff(true);
+    setLatestDiffingSourceId(newResultId);
+    setError('');
+
+    try {
+      let result: { result: string; debug: any; usage: UsageInfo | null; };
+      if (mode === Mode.GEMINI) {
+        result = await generateDiffWithGemini(oldResult.markdown, newResult.markdown, diffPersonaPrompt, diffUserPrompt, diffTemperature);
+      } else {
+        const selectedDiffModel = availableModels.find(m => m.id === diffOpenRouterModel);
+        const isThinkingOn = !!(selectedDiffModel?.supports_thinking && isThinkingEnabled);
+        result = await generateDiffWithOpenRouter(oldResult.markdown, newResult.markdown, diffOpenRouterModel, openRouterApiKey, diffPersonaPrompt, diffUserPrompt, diffTemperature, isThinkingOn);
+      }
+      setDiffMap(prev => ({ ...prev, [newResultId]: result.result }));
+    } catch (err: any) {
+      setError(`差分生成中にエラーが発生しました: ${err.message}`);
+    } finally {
+      setIsGeneratingDiff(false);
+      setLatestDiffingSourceId(null);
+    }
+  }, [analysisHistory, mode, openRouterApiKey, diffOpenRouterModel, diffPersonaPrompt, diffUserPrompt, diffTemperature, availableModels, isThinkingEnabled, setDiffMap]);
+
+
+  const handleDownload = useCallback((markdown: string, filename: string) => {
     if (!markdown) return;
     const blob = new Blob([markdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = extractFilenameFromMarkdown(markdown);
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -703,10 +794,11 @@ export default function App() {
   const mainPresetHandlers = createPresetHandlers(presets, setPresets, setSelectedPresetId, setPersonaPrompt, setUserPrompt, setTemperature, { persona: DEFAULT_PERSONA_PROMPT, user: DEFAULT_USER_PROMPT, temp: DEFAULT_TEMPERATURE }, personaPrompt, userPrompt, temperature);
   const qgPresetHandlers = createPresetHandlers(qgPresets, setQgPresets, setSelectedQgPresetId, setQgPersonaPrompt, setQgUserPrompt, setQgTemperature, { persona: DEFAULT_QG_PERSONA_PROMPT, user: DEFAULT_QG_USER_PROMPT, temp: DEFAULT_QG_TEMPERATURE }, qgPersonaPrompt, qgUserPrompt, qgTemperature);
   const refinePresetHandlers = createPresetHandlers(refinePresets, setRefinePresets, setSelectedRefinePresetId, setRefinePersonaPrompt, setRefineUserPrompt, setRefineTemperature, { persona: DEFAULT_REFINE_PERSONA_PROMPT, user: DEFAULT_REFINE_USER_PROMPT, temp: DEFAULT_REFINE_TEMPERATURE }, refinePersonaPrompt, refineUserPrompt, refineTemperature);
+  const diffPresetHandlers = createPresetHandlers(diffPresets, setDiffPresets, setSelectedDiffPresetId, setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, { persona: DEFAULT_DIFF_PERSONA_PROMPT, user: DEFAULT_DIFF_USER_PROMPT, temp: DEFAULT_DIFF_TEMPERATURE }, diffPersonaPrompt, diffUserPrompt, diffTemperature);
 
   
   const isAnalyzeDisabled = isLoading || !pdfFile || (mode === Mode.OPENROUTER && (!openRouterApiKey || !openRouterModel)) || (mode === Mode.GEMINI && (!isAuthorized || !isGeminiAvailable));
-  const isAnyLoading = isLoading || isGeneratingQuestions || isRefining;
+  const isAnyLoading = isLoading || isGeneratingQuestions || isRefining || isGeneratingDiff;
 
   const showImageCapabilityWarning = 
     mode === Mode.OPENROUTER &&
@@ -808,6 +900,7 @@ export default function App() {
                     main={{ personaPrompt, setPersonaPrompt, userPrompt, setUserPrompt, temperature, setTemperature, presets, selectedPresetId, ...mainPresetHandlers, openRouterModel }}
                     qg={{ personaPrompt: qgPersonaPrompt, setPersonaPrompt: setQgPersonaPrompt, userPrompt: qgUserPrompt, setUserPrompt: setQgUserPrompt, temperature: qgTemperature, setTemperature: setQgTemperature, presets: qgPresets, selectedPresetId: selectedQgPresetId, ...qgPresetHandlers, openRouterModel: qgOpenRouterModel, setOpenRouterModel: setQgOpenRouterModel }}
                     refine={{ personaPrompt: refinePersonaPrompt, setPersonaPrompt: setRefinePersonaPrompt, userPrompt: refineUserPrompt, setUserPrompt: setRefineUserPrompt, temperature: refineTemperature, setTemperature: setRefineTemperature, presets: refinePresets, selectedPresetId: selectedRefinePresetId, ...refinePresetHandlers, openRouterModel: refineOpenRouterModel, setOpenRouterModel: handleRefineModelChange }}
+                    diff={{ personaPrompt: diffPersonaPrompt, setPersonaPrompt: setDiffPersonaPrompt, userPrompt: diffUserPrompt, setUserPrompt: setDiffUserPrompt, temperature: diffTemperature, setTemperature: setDiffTemperature, presets: diffPresets, selectedPresetId: selectedDiffPresetId, ...diffPresetHandlers, openRouterModel: diffOpenRouterModel, setOpenRouterModel: setDiffOpenRouterModel }}
                     mode={mode}
                     isGeminiAvailable={isGeminiAvailable}
                     availableModels={availableModels}
@@ -825,6 +918,7 @@ export default function App() {
                   setQuestionsMap({});
                   setAnsweredQuestionsMap({});
                   setCustomInstructionsMap({});
+                  setDiffMap({});
                   setError('');
                   if (file) {
                     setIsPdfPreviewOpen(true);
@@ -880,13 +974,28 @@ export default function App() {
                 const questionsForThisResult = questionsMap[result.id];
                 const answeredQuestionsForThisResult = answeredQuestionsMap[result.id];
                 const customInstructionsForThisResult = customInstructionsMap[result.id];
+                const diffForThisResult = diffMap[result.id];
                 const isCurrentlyRefiningFromThis = isRefining && latestRefiningSourceId === result.id;
-                const isCurrentlyGeneratingQuestions = isGeneratingQuestions && isLatestResult && !questionsForThisResult;
+                const isCurrentlyGeneratingQuestions = isGeneratingQuestions && questionsMap[result.id] === undefined && latestRefiningSourceId !== result.id && isLatestResult;
+                const isCurrentlyGeneratingDiff = isGeneratingDiff && latestDiffingSourceId === result.id;
 
                 return (
                   <div key={result.id}>
-                    <ResultOutput result={result} index={index} onCopy={handleCopy} onDownload={handleDownload} exchangeRateInfo={exchangeRateInfo} />
+                    <ResultOutput result={result} index={index} onCopy={handleCopy} onDownload={(markdown) => handleDownload(markdown, extractFilenameFromMarkdown(markdown))} exchangeRateInfo={exchangeRateInfo} />
                     
+                    {isCurrentlyGeneratingDiff && (
+                       <div className="flex items-center justify-center p-4 text-gray-600 dark:text-gray-400"><svg className="animate-spin mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>差分を生成中...</span></div>
+                    )}
+                    
+                    {diffForThisResult && (
+                      <DiffPanel
+                        key={`diff-${result.id}`}
+                        diffMarkdown={diffForThisResult}
+                        onDownload={() => handleDownload(diffForThisResult, `diff_v0_to_v${index}.md`)}
+                        onCopy={() => handleCopy(diffForThisResult)}
+                      />
+                    )}
+
                     {isCurrentlyGeneratingQuestions && (
                       <div className="flex items-center justify-center p-4 text-gray-600 dark:text-gray-400"><svg className="animate-spin mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>確認事項を生成中...</span></div>
                     )}
@@ -902,17 +1011,27 @@ export default function App() {
                       />
                     )}
 
-                    {isLatestResult && !isAnyLoading && !questionsForThisResult && (
-                      <div className="mt-8 flex justify-center">
-                        <button
-                          onClick={() => handleGenerateQuestions(result.id)}
-                          className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-dashed border-primary-400 text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                        >
-                          <SparklesIcon className="h-5 w-5" />
-                          <span>さらに改良する (AIに質問させる)</span>
-                        </button>
-                      </div>
-                    )}
+                    <div className="mt-8 flex justify-center gap-4">
+                        {index > 0 && !diffForThisResult && !isAnyLoading && (
+                            <button
+                                onClick={() => handleGenerateDiff(result.id, analysisHistory[0].id)}
+                                className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-dashed border-purple-400 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <AdjustmentsHorizontalIcon className="h-5 w-5" />
+                                <span>最初の解析結果との差分を確認</span>
+                            </button>
+                        )}
+                        {isLatestResult && !questionsForThisResult && !isAnyLoading && (
+                          <button
+                            onClick={() => handleGenerateQuestions(result.id)}
+                            className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-dashed border-primary-400 text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                          >
+                            <SparklesIcon className="h-5 w-5" />
+                            <span>さらに改良する (AIに質問させる)</span>
+                          </button>
+                        )}
+                    </div>
+
                   </div>
                 );
               })}

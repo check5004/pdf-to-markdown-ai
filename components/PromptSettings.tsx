@@ -1,10 +1,9 @@
-
 import React, { useState } from 'react';
 import { PromptPreset, Mode, OpenRouterModel } from '../types';
 import { ArrowPathIcon } from './Icons';
 import PromptConfigurationPanel from './PromptConfigurationPanel';
 
-type SettingType = 'main' | 'qg' | 'refine';
+type SettingType = 'main' | 'qg' | 'refine' | 'diff';
 
 interface PromptSettingsProps {
   // Main Analysis Settings
@@ -34,6 +33,15 @@ interface PromptSettingsProps {
     onSavePreset: (name: string) => void; onLoadPreset: (id: string) => void; onDeletePreset: (id: string) => void;
     openRouterModel: string; setOpenRouterModel: (id: string) => void;
   };
+  // Diff Generation Settings
+  diff: {
+    personaPrompt: string; setPersonaPrompt: (v: string) => void;
+    userPrompt: string; setUserPrompt: (v: string) => void;
+    temperature: number; setTemperature: (v: number) => void;
+    presets: PromptPreset[]; selectedPresetId: string;
+    onSavePreset: (name: string) => void; onLoadPreset: (id: string) => void; onDeletePreset: (id: string) => void;
+    openRouterModel: string; setOpenRouterModel: (id: string) => void;
+  };
   
   // Shared Info
   mode: Mode;
@@ -47,6 +55,7 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
   const [mainPresetName, setMainPresetName] = useState('');
   const [qgPresetName, setQgPresetName] = useState('');
   const [refinePresetName, setRefinePresetName] = useState('');
+  const [diffPresetName, setDiffPresetName] = useState('');
 
   const tabClasses = (tab: SettingType) => 
     `px-4 py-2 text-sm font-medium rounded-t-lg transition-colors focus:outline-none ${
@@ -58,6 +67,7 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
   const getPresetNameState = (tab: SettingType): [string, (name: string) => void] => {
     if (tab === 'qg') return [qgPresetName, setQgPresetName];
     if (tab === 'refine') return [refinePresetName, setRefinePresetName];
+    if (tab === 'diff') return [diffPresetName, setDiffPresetName];
     return [mainPresetName, setMainPresetName];
   };
 
@@ -65,6 +75,7 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
     switch (tab) {
         case 'qg': return props.qg;
         case 'refine': return props.refine;
+        case 'diff': return props.diff;
         default: return props.main;
     }
   };
@@ -79,6 +90,7 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
           <button className={tabClasses('main')} onClick={() => setActiveTab('main')}>初期解析</button>
           <button className={tabClasses('qg')} onClick={() => setActiveTab('qg')}>質問生成</button>
           <button className={tabClasses('refine')} onClick={() => setActiveTab('refine')}>ドキュメント改良</button>
+          <button className={tabClasses('diff')} onClick={() => setActiveTab('diff')}>差分生成</button>
         </nav>
       </div>
 
