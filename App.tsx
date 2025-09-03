@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { Mode, OpenRouterModel, PromptPreset, AnalysisMode, UsageInfo, Question, AnalysisResult } from './types';
@@ -34,6 +35,7 @@ const DEFAULT_PERSONA_PROMPT = `あなたは熟練のソフトウェアアーキ
 - セクション構造（見出しレベル）を判別し、欠落している見出しがあれば適切に補い、論理的な順序に並べ直す
 - 表や箇条書き、番号付き手順、入出力定義、IF/Elseフロー、データ型、インタフェース、制約などを正確に抽出しMarkdownで表現
 - 画像化された表はMarkdown表に変換（元の行・列の意味を保つ）。座標ベースの配置のみの情報は、読み手にとって意味のある説明に変換
+- 図解が必須な場合はMermaid形式で表現してください。Mermaid形式で表現できないものは図解しないでください。意味のない図解を生成しないように注意してください。**【Mermaid構文の最重要ルール】** 表示テキストは、括弧や特殊文字によるレンダリングエラーを防ぐため、**必ずダブルクォーテーション(\`"\`)で囲んでください。** (例: A["ユーザー登録 (成功)"] --> B["メイン画面へ遷移"])
 - ページ番号、章番号、図番号などの識別子があれば保持
 
 - **ドキュメントの品質レビューと「未確定事項」の抽出:**
@@ -72,6 +74,7 @@ const DEFAULT_REFINE_PERSONA_PROMPT = `あなたは、極めて慎重かつ優�
 4.  **情報を省略しない:** 元のドキュメントに含まれている情報を、あなたの判断で省略したり、要約したりしないでください。出力は、質疑応答や追加指示の内容を反映した「完全な」ドキュメントでなければなりません。
 5.  **「マージ」の意識を持つ:** あなたの仕事は、ゼロから文章を書き直すことではなく、既存のドキュメントに新しい情報を「統合（マージ）」することです。「未確定事項」が回答によって確定した場合、その箇所を新しい情報で置き換えてください。既存の記述を補足する回答であれば、その内容を自然な形で追記してください。
 6.  **「無視」の指示を尊重し記録する:** 質疑応答の中で、回答が「この質問は無関係、あるいはAIの誤解に基づいているため...」といった内容の場合、それはユーザーからの「変更不要」の明確な指示です。その質問に関連する元のドキュメントの箇所は一切変更せず、その質問項目を後述の「未確定事項」セクションに「**[確認済み - 変更不要]**」として記録してください。これにより、ユーザーが意図的に変更しなかった項目であることを示します。
+7.  **Mermaid図の構文:** ドキュメント内にMermaid図を生成または修正する場合、**【Mermaid構文の最重要ルール】** 図の中に表示されるすべてのテキストは、括弧や特殊文字によるレンダリングエラーを防ぐため、**必ずダブルクォーテーション(\`"\`)で囲んでください。** (例: A["ユーザー登録 (成功)"] --> B["メイン画面へ遷移"])
 
 **改良後のドキュメントの最終レビューと「未確定事項」の抽出:**
 改良後のドキュメントの末尾に「## 未確定事項」というセクションを設け、以下の2種類の項目を箇条書きでリストアップしてください。
@@ -966,138 +969,135 @@ export default function App() {
                 }} />
               </div>
               <button onClick={handleAnalysis} disabled={isAnalyzeDisabled} className="w-full flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all transform hover:scale-105 disabled:scale-100">
-                {isLoading ? ( <><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>{progressMessage || '解析中...'}</span></> ) : ( <><WandSparklesIcon className="h-5 w-5" /><span>ドキュメントを解析</span></> )}
+                {isLoading ? ( <><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>解析中...</> ) : ( <><WandSparklesIcon className="h-6 w-6" />ドキュメントを解析</> )}
               </button>
             </div>
-
-            <div className="xl:sticky xl:top-8 z-10">
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
-                <CollapsibleSection
-                  isOpen={isPdfPreviewOpen}
-                  onToggle={() => setIsPdfPreviewOpen(prev => !prev)}
-                  title={
-                    <span className="flex items-center gap-2">
-                      <BookOpenIcon className="h-6 w-6" />
-                      <span>PDFプレビュー</span>
-                    </span>
-                  }>
-                  <PdfPreview file={pdfFile} />
+            {pdfFile && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8">
+                <CollapsibleSection title="PDFプレビュー" isOpen={isPdfPreviewOpen} onToggle={() => setIsPdfPreviewOpen(!isPdfPreviewOpen)}>
+                    <PdfPreview file={pdfFile} />
                 </CollapsibleSection>
-              </div>
-            </div>
-
-          </div>
-
-          {/* --- Right Column: Output --- */}
-          <div className="space-y-8 xl:col-span-3">
-            {error && (
-              <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
-                <p className="font-bold">エラー</p><p>{error}</p>
               </div>
             )}
             
-            {(isAnyLoading && analysisHistory.length === 0) ? (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8">
-                 <MarkdownPreview markdown="" isLoading={true} progressMessage={progressMessage} />
+            <button onClick={() => setShowDocs(true)} className="w-full flex items-center justify-center gap-2 px-6 py-3 border border-dashed border-gray-400 text-gray-600 dark:text-gray-400 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
+              <BookOpenIcon className="h-5 w-5"/>
+              <span>使い方を見る</span>
+            </button>
+
+          </div>
+
+          {/* --- Right Column: Results & Interaction --- */}
+          <div className="space-y-8 xl:col-span-3">
+            {isAnyLoading && !isLoading && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8 flex items-center justify-center">
+                 <svg className="animate-spin h-6 w-6 text-primary-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                 <p className="ml-4 text-lg font-semibold">{progressMessage || 'AIが処理中です...'}</p>
               </div>
+            )}
+            
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 text-red-700 dark:text-red-200 p-4 rounded-r-lg shadow-lg" role="alert">
+                <p className="font-bold">エラーが発生しました</p>
+                <p>{error}</p>
+              </div>
+            )}
+            
+            {isLoading ? (
+               <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8">
+                  <MarkdownPreview markdown="" isLoading={true} progressMessage={progressMessage} />
+               </div>
             ) : analysisHistory.length === 0 ? (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8">
+               <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8">
                  <MarkdownPreview markdown="" isLoading={false} progressMessage="" />
-              </div>
+               </div>
             ) : null}
 
-            <div className="space-y-8">
-              {analysisHistory.map((result, index) => {
-                const isLatestResult = index === analysisHistory.length - 1;
-                const questionsForThisResult = questionsMap[result.id];
-                const answeredQuestionsForThisResult = answeredQuestionsMap[result.id];
-                const customInstructionsForThisResult = customInstructionsMap[result.id];
-                const diffForThisResult = diffMap[result.id];
-                const isCurrentlyRefiningFromThis = isRefining && latestRefiningSourceId === result.id;
-                const isCurrentlyGeneratingQuestions = isGeneratingQuestions && questionsMap[result.id] === undefined && latestRefiningSourceId !== result.id && isLatestResult;
-                const isCurrentlyGeneratingDiff = isGeneratingDiff && latestDiffingSourceId === result.id;
+            {analysisHistory.map((result, index) => {
+              const prevResultId = index > 0 ? analysisHistory[index - 1].id : null;
+              const hasQuestions = questionsMap[result.id] && questionsMap[result.id].length > 0;
+              const hasDiff = diffMap[result.id];
+              const isLatestResult = index === analysisHistory.length - 1;
 
-                return (
-                  <div key={result.id}>
-                    <ResultOutput result={result} index={index} onCopy={handleCopy} onDownload={(markdown) => handleDownload(markdown, extractFilenameFromMarkdown(markdown))} exchangeRateInfo={exchangeRateInfo} />
-                    
-                    {isCurrentlyGeneratingDiff && (
-                       <div className="flex items-center justify-center p-4 text-gray-600 dark:text-gray-400"><svg className="animate-spin mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>差分を生成中...</span></div>
-                    )}
-                    
-                    {diffForThisResult && (
-                      <DiffPanel
-                        key={`diff-${result.id}`}
-                        diffMarkdown={diffForThisResult}
-                        onDownload={() => handleDownload(diffForThisResult, `diff_v0_to_v${index}.md`)}
-                        onCopy={() => handleCopy(diffForThisResult)}
-                      />
-                    )}
-
-                    {isCurrentlyGeneratingQuestions && (
-                      <div className="flex items-center justify-center p-4 text-gray-600 dark:text-gray-400"><svg className="animate-spin mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>確認事項を生成中...</span></div>
-                    )}
-
-                    {questionsForThisResult && (
-                      <ClarificationPanel
-                        key={`questions-${result.id}`}
-                        questions={questionsForThisResult}
-                        answeredQuestions={answeredQuestionsForThisResult}
-                        initialCustomInstructions={customInstructionsForThisResult}
-                        onAnswersSubmit={(answeredQuestions, customInstructions) => handleRefineDocument(result.id, answeredQuestions, customInstructions)}
-                        isRefining={isCurrentlyRefiningFromThis}
-                      />
-                    )}
-
-                    <div className="mt-8 flex justify-center gap-4">
-                        {index > 0 && !diffForThisResult && !isAnyLoading && (
-                            <button
-                                onClick={() => handleGenerateDiff(result.id, analysisHistory[0].id)}
-                                className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-dashed border-purple-400 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <AdjustmentsHorizontalIcon className="h-5 w-5" />
-                                <span>最初の解析結果との差分を確認</span>
-                            </button>
-                        )}
-                        {isLatestResult && !questionsForThisResult && !isAnyLoading && (
-                          <button
-                            onClick={() => handleGenerateQuestions(result.id)}
-                            className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-dashed border-primary-400 text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                          >
-                            <SparklesIcon className="h-5 w-5" />
-                            <span>さらに改良する (AIに質問させる)</span>
-                          </button>
-                        )}
+              return (
+                <div key={result.id}>
+                  <ResultOutput 
+                    result={result} 
+                    index={index} 
+                    onCopy={handleCopy} 
+                    onDownload={(md) => handleDownload(md, extractFilenameFromMarkdown(md))}
+                    exchangeRateInfo={exchangeRateInfo} 
+                  />
+                  
+                  {isGeneratingDiff && latestDiffingSourceId === result.id && (
+                    <div className="my-8 flex items-center justify-center p-4">
+                      <svg className="animate-spin h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      <span className="ml-2">差分を生成中...</span>
                     </div>
+                  )}
 
+                  {hasDiff && (
+                    <DiffPanel 
+                      diffMarkdown={diffMap[result.id]} 
+                      onCopy={() => handleCopy(diffMap[result.id])} 
+                      onDownload={() => handleDownload(diffMap[result.id], `diff_v${index}.md`)} 
+                    />
+                  )}
+                  
+                  {isRefining && latestRefiningSourceId === result.id && (
+                     <ClarificationPanel 
+                        questions={questionsMap[result.id] || []}
+                        answeredQuestions={answeredQuestionsMap[result.id]}
+                        initialCustomInstructions={customInstructionsMap[result.id]}
+                        onAnswersSubmit={() => {}}
+                        isRefining={true}
+                     />
+                  )}
+
+                  {hasQuestions && !(isRefining && latestRefiningSourceId === result.id) && (
+                    <ClarificationPanel 
+                      questions={questionsMap[result.id]} 
+                      answeredQuestions={answeredQuestionsMap[result.id]}
+                      initialCustomInstructions={customInstructionsMap[result.id]}
+                      onAnswersSubmit={(answered, instructions) => handleRefineDocument(result.id, answered, instructions)}
+                      isRefining={isRefining}
+                    />
+                  )}
+                  
+                  <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+                     {isLatestResult && !hasQuestions && (
+                        <button 
+                            onClick={() => handleGenerateQuestions(result.id)} 
+                            disabled={isAnyLoading}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                        >
+                            {isGeneratingQuestions ? (
+                                <><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>質問生成中...</>
+                            ) : (
+                                <><SparklesIcon className="h-5 w-5"/>さらに改良する (AIに質問させる)</>
+                            )}
+                        </button>
+                     )}
+                     {prevResultId && !hasDiff && (
+                        <button 
+                          onClick={() => handleGenerateDiff(result.id, analysisHistory[0].id)} 
+                          disabled={isAnyLoading}
+                          className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 border-2 border-purple-500 text-purple-600 dark:text-purple-300 dark:border-purple-400 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/30 disabled:bg-gray-200 disabled:text-gray-500 disabled:border-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                        >
+                           {isGeneratingDiff ? (
+                                <><svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>差分生成中...</>
+                           ) : (
+                               <><BugAntIcon className="h-5 w-5" />最初の解析結果との差分を確認</>
+                           )}
+                        </button>
+                     )}
                   </div>
-                );
-              })}
-            </div>
+
+                </div>
+              )
+            })}
           </div>
         </div>
-
-        <footer className="text-center mt-8 text-sm text-gray-500 dark:text-gray-400">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <p>React, Tailwind CSS, Gemini, OpenRouter を利用しています。</p>
-            <a 
-              href="https://forms.gle/97qvaNivZQ84TM1b8" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              <BugAntIcon className="h-4 w-4" />
-              バグを報告
-            </a>
-            <button 
-              onClick={() => setShowDocs(true)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              <BookOpenIcon className="h-4 w-4" />
-              使い方
-            </button>
-          </div>
-        </footer>
       </main>
     </div>
   );
