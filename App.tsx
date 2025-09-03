@@ -21,6 +21,7 @@ import DiffPanel from './components/DiffPanel';
 import PdfPreview from './components/PdfPreview';
 import { DocumentIcon, WandSparklesIcon, DownloadIcon, ClipboardIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BrainIcon, SparklesIcon, BugAntIcon, AdjustmentsHorizontalIcon } from './components/Icons';
 import { msalConfig, loginRequest, AUTHORIZED_DOMAIN } from './authConfig';
+import Documentation from './components/Documentation';
 
 
 // pdf.js is loaded from CDN, so we need to declare its global object
@@ -314,6 +315,7 @@ export default function App() {
   
   // Misc state
   const [exchangeRateInfo, setExchangeRateInfo] = useState<ExchangeRateInfo | null>(null);
+  const [showDocs, setShowDocs] = useState<boolean>(false);
 
   // --- AI Settings State ---
   // 1. Initial Analysis
@@ -807,6 +809,10 @@ export default function App() {
     selectedOpenRouterModel &&
     !selectedOpenRouterModel.modality_types.includes('image_input');
 
+  if (showDocs) {
+    return <Documentation onClose={() => setShowDocs(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200 font-sans">
       <main className="container mx-auto p-4 md:p-8">
@@ -1052,6 +1058,13 @@ export default function App() {
               <BugAntIcon className="h-4 w-4" />
               バグを報告
             </a>
+            <button 
+              onClick={() => setShowDocs(true)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+              <BookOpenIcon className="h-4 w-4" />
+              使い方
+            </button>
           </div>
         </footer>
       </main>
