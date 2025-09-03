@@ -361,8 +361,16 @@ export default function App() {
       window.location.hash = 'docs';
     } else {
       if (window.location.hash === '#docs') {
-        // Use pushState to remove hash without reloading and adding to history
-        window.history.pushState("", document.title, window.location.pathname + window.location.search);
+        try {
+          // Use replaceState to remove hash without reloading and adding to history.
+          // This is safer than pushState and avoids creating extra history entries.
+          window.history.replaceState("", document.title, window.location.pathname + window.location.search);
+        } catch (e) {
+          console.error("Could not remove hash from URL using replaceState:", e);
+          // Fallback for restricted environments like blob URLs where history manipulation is forbidden.
+          // This will clear the hash but may add a history entry.
+          window.location.hash = '';
+        }
       }
     }
   }, [showDocs]);

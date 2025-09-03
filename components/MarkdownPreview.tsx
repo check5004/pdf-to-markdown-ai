@@ -1,8 +1,7 @@
 
 import React, { useEffect, useState, memo, useRef } from 'react';
 
-// Because we can't use npm, we'll dynamically import from a CDN.
-// We're adding support for GFM tables, math, raw HTML, and mermaid diagrams.
+// Dynamically import from a CDN for markdown rendering with extensions.
 const loadMarkdownRenderer = async () => {
   const [ 
     { default: ReactMarkdown }, 
@@ -20,7 +19,7 @@ const loadMarkdownRenderer = async () => {
   return { ReactMarkdown, remarkGfm, remarkMath, rehypeKatex, rehypeRaw };
 };
 
-// Declare mermaid global as it's loaded from a script tag
+// Declare mermaid global as it's loaded from a script tag in index.html.
 declare const mermaid: any;
 
 interface MarkdownPreviewProps {
@@ -29,77 +28,71 @@ interface MarkdownPreviewProps {
   progressMessage: string;
 }
 
-// A component to render Mermaid diagrams
+// **FIX**: A more robust component to render Mermaid diagrams using direct DOM manipulation
+// to avoid race conditions between React's state updates and Mermaid's async rendering.
 const Mermaid: React.FC<{ chart: string }> = memo(({ chart }) => {
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [uniqueId] = useState(() => `mermaid-svg-${self.crypto.randomUUID()}`);
 
   useEffect(() => {
-    if (ref.current && chart && typeof mermaid !== 'undefined') {
-      // For mermaid.run(), we place the chart text directly into the element.
-      // Mermaid will process elements with the class 'mermaid' and replace the text with the SVG.
-      ref.current.innerHTML = chart;
-      ref.current.removeAttribute('data-processed'); // This attribute is added by mermaid, remove it for re-renders.
+    let isCancelled = false;
 
+    const renderDiagram = async () => {
+      const container = containerRef.current;
+      if (!container || !chart || typeof mermaid === 'undefined') {
+        return;
+      }
+      
+      // Set initial loading state directly on the DOM element.
+      container.innerHTML = `<div class="p-4 text-gray-500 dark:text-gray-400">Rendering diagram...</div>`;
+      
       try {
-        // Use mermaid.run() to render the specific node.
-        mermaid.run({
-          nodes: [ref.current]
-        });
+        // Use the promise-based render API, which is more reliable.
+        const { svg } = await mermaid.render(uniqueId, chart);
+        if (!isCancelled) {
+          container.innerHTML = svg;
+        }
       } catch (e: any) {
-        console.error("Error rendering mermaid chart:", e);
-        if (ref.current) {
-            ref.current.innerHTML = `<div class="mermaid-error p-4 bg-red-100 text-red-700 border border-red-300 rounded-md"><p class="font-bold">Mermaid Diagram Error:</p><pre class="whitespace-pre-wrap"><code>${e.message || 'Invalid diagram syntax.'}</code></pre></div>`;
+        if (!isCancelled) {
+          console.error("Mermaid render error:", e);
+          const errorMessage = e.message || 'Invalid diagram syntax';
+          // Display a formatted error message directly in the container.
+          container.innerHTML = `<div class="mermaid-error p-4 bg-red-100 text-red-700 border border-red-300 rounded-md"><p class="font-bold">Mermaid Diagram Error:</p><pre class="whitespace-pre-wrap text-left"><code>${errorMessage}</code></pre></div>`;
         }
       }
-    }
-  }, [chart]);
+    };
 
-  // Add the 'mermaid' class for mermaid.run() to discover it.
-  // Use a key to ensure React replaces the div if the chart content changes,
-  // which helps in re-triggering the useEffect for rendering.
-  return <div ref={ref} key={chart} className="mermaid-diagram-container flex justify-center my-4 mermaid" />;
+    renderDiagram();
+    
+    return () => { isCancelled = true; };
+  }, [chart, uniqueId]);
+
+  // The component renders a single div, and the useEffect hook manages its content.
+  return <div ref={containerRef} className="mermaid-diagram-container flex justify-center my-4" />;
 });
 
 
-const MemoizedMarkdownRenderer = memo(({ ReactMarkdown, remarkGfm, remarkMath, rehypeKatex, rehypeRaw, markdown }: any) => {
+// A memoized component for the core Markdown rendering logic.
+const MemoizedMarkdownRenderer = memo(({ ReactMarkdown, remarkGfm, remarkMath, rehypeKatex, rehypeRaw, markdown, isMermaidReady }: any) => {
     return (
         <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
             rehypePlugins={[rehypeKatex, rehypeRaw]}
             components={{
-              h1: ({node, ...props}) => <h1 className="text-3xl font-bold mt-6 mb-4 border-b pb-2" {...props} />,
-              h2: ({node, ...props}) => <h2 className="text-2xl font-bold mt-5 mb-3 border-b pb-2" {...props} />,
-              h3: ({node, ...props}) => <h3 className="text-xl font-bold mt-4 mb-2" {...props} />,
-              p: ({node, ...props}) => <p className="mb-4 leading-relaxed" {...props} />,
-              ul: ({node, ...props}) => <ul className="list-disc list-inside mb-4 pl-4" {...props} />,
-              ol: ({node, ...props}) => <ol className="list-decimal list-inside mb-4 pl-4" {...props} />,
-              li: ({node, ...props}) => <li className="mb-2" {...props} />,
-              blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-600 dark:text-gray-400 dark:border-gray-600 my-4" {...props} />,
+              // Override 'code' to handle Mermaid diagrams conditionally.
               code: ({node, inline, className, children, ...props}) => {
-                const match = /language-(\w+)/.exec(className || '')
-                const lang = match ? match[1] : '';
-                const codeString = String(children).replace(/\n$/, '');
-
-                if (lang === 'mermaid' && !inline) {
-                   return <Mermaid chart={codeString} />;
+                const match = /language-(\w+)/.exec(className || '');
+                
+                if (match && match[1] === 'mermaid' && !inline) {
+                   if (isMermaidReady) {
+                     return <Mermaid chart={String(children).replace(/\n$/, '')} />;
+                   } else {
+                     return <div className="mermaid-diagram-container flex justify-center my-4 p-4 text-gray-500 dark:text-gray-400">Initializing Mermaid...</div>;
+                   }
                 }
                 
-                return !inline ? (
-                  <pre className="bg-gray-100 dark:bg-gray-900 rounded-md p-4 overflow-x-auto my-4">
-                    <code className={`language-${lang}`} {...props}>
-                      {children}
-                    </code>
-                  </pre>
-                ) : (
-                  <code className="bg-gray-200 dark:bg-gray-700 rounded px-1 py-0.5 text-sm font-mono" {...props}>
-                    {children}
-                  </code>
-                )
+                return <code className={className} {...props}>{children}</code>;
               },
-              table: ({node, ...props}) => <div className="overflow-x-auto"><table className="table-auto w-full my-4 border-collapse border border-gray-300 dark:border-gray-600" {...props} /></div>,
-              thead: ({node, ...props}) => <thead className="bg-gray-100 dark:bg-gray-700" {...props} />,
-              th: ({node, ...props}) => <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold" {...props} />,
-              td: ({node, ...props}) => <td className="border border-gray-300 dark:border-gray-600 px-4 py-2" {...props} />,
             }}
         >
             {markdown}
@@ -107,20 +100,31 @@ const MemoizedMarkdownRenderer = memo(({ ReactMarkdown, remarkGfm, remarkMath, r
     );
 });
 
-
+// The main preview component.
 const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ markdown, isLoading, progressMessage }) => {
   const [renderer, setRenderer] = useState<any>(null);
+  const [isMermaidReady, setIsMermaidReady] = useState(false);
+  const mermaidInitialized = useRef(false);
 
   useEffect(() => {
     loadMarkdownRenderer().then(setRenderer);
-    if (typeof mermaid !== 'undefined') {
+
+    // This effect ensures Mermaid is initialized only once.
+    if (typeof mermaid !== 'undefined' && !mermaidInitialized.current) {
+       mermaidInitialized.current = true;
        const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-       mermaid.initialize({
-        startOnLoad: false,
-        theme: isDarkMode ? 'dark' : 'default',
-        securityLevel: 'loose',
-        fontFamily: "inherit"
-      });
+       
+       try {
+         mermaid.initialize({
+          startOnLoad: false,
+          theme: isDarkMode ? 'dark' : 'default',
+          securityLevel: 'loose',
+          fontFamily: "inherit"
+        });
+        setIsMermaidReady(true);
+       } catch (e) {
+        console.error("Failed to initialize Mermaid:", e);
+       }
     }
   }, []);
 
@@ -157,6 +161,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ markdown, isLoading, 
             rehypeKatex={renderer.rehypeKatex}
             rehypeRaw={renderer.rehypeRaw}
             markdown={markdown}
+            isMermaidReady={isMermaidReady}
           />
       ) : (
         <p>Markdownレンダラーを読み込み中...</p>
