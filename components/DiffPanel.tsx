@@ -30,7 +30,7 @@ const DiffPanel: React.FC<DiffPanelProps> = ({ diffMarkdown, onDownload, onCopy 
         aria-expanded={isOpen}
       >
         <h3 className="text-xl font-bold text-purple-800 dark:text-purple-200">
-          前バージョンとの差分
+          初期解析版との差分
         </h3>
         <ChevronDownIcon
           className={`h-6 w-6 transform transition-transform text-purple-600 dark:text-purple-300 ${isOpen ? 'rotate-180' : ''}`}

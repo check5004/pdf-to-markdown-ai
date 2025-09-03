@@ -105,7 +105,7 @@ export const generateClarificationQuestions = async (
               properties: {
                 question: {
                   type: Type.STRING,
-                  description: 'ユーザーへの質問文',
+                  description: 'ユーザーへの質問文。質問の冒頭には、関連するドキュメント本体の箇所（セクション名など）を `[参照箇所]` の形式で含めること。参照箇所として `[未確定事項]` は使用しないこと。',
                 },
                 suggestions: {
                   type: Type.ARRAY,

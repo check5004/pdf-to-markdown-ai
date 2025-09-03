@@ -35,7 +35,7 @@ const DEFAULT_PERSONA_PROMPT = `あなたは熟練のソフトウェアアーキ
 - セクション構造（見出しレベル）を判別し、欠落している見出しがあれば適切に補い、論理的な順序に並べ直す
 - 表や箇条書き、番号付き手順、入出力定義、IF/Elseフロー、データ型、インタフェース、制約などを正確に抽出しMarkdownで表現
 - 画像化された表はMarkdown表に変換（元の行・列の意味を保つ）。座標ベースの配置のみの情報は、読み手にとって意味のある説明に変換
-- 図解が必須な場合はMermaid形式で表現してください。Mermaid形式で表現できないものは図解しないでください。意味のない図解を生成しないように注意してください。**【Mermaid構文の最重要ルール】** 表示テキストは、括弧や特殊文字によるレンダリングエラーを防ぐため、**必ずダブルクォーテーション(\`"\`)で囲んでください。** (例: A["ユーザー登録 (成功)"] --> B["メイン画面へ遷移"])
+- 図解が必須な場合はMermaid形式で表現してください。Mermaid形式で表現できないものは図解しないでください。意味のない図解を生成しないように注意してください。画面レイアウトはmeraid図で表現できないのでやらないでください。**【Mermaid構文の最重要ルール】** 表示テキストは、括弧や特殊文字によるレンダリングエラーを防ぐため、**必ずダブルクォーテーション(\`"\`)で囲んでください。** (例: A["ユーザー登録 (成功)"] --> B["メイン画面へ遷移"])
 - ページ番号、章番号、図番号などの識別子があれば保持
 
 - **ドキュメントの品質レビューと「未確定事項」の抽出:**
@@ -60,6 +60,10 @@ const DEFAULT_QG_PERSONA_PROMPT = `あなたは、経験豊富なITコンサル�
     -   **情報の欠落や不備の指摘:** その種の設計書として本来あるべき情報（非機能要件、エラーハンドリング、制約条件など）が不足している場合、それを補うための質問をしてください。
     -   **矛盾点の解消:** ドキュメント内で矛盾している箇所を見つけ、どちらが正しいか、あるいはどう修正すべきかを問う質問をしてください。
     -   **「未確定事項」の深掘り:** 「未確定」とされている項目について、それを確定させるために必要な情報を引き出す質問をしてください。
+3.  **質問に文脈を付与する:** 各質問の冒頭に、関連するドキュメントの**本体**の箇所（セクション名、見出しなど）を \`[参照箇所]\` の形式で示してください。これにより、ユーザーは質問の文脈を即座に把握できます。
+    -   **重要:** 参照箇所として \`[未確定事項]\` という文字列を**絶対に使用しないでください**。「未確定事項」セクションの項目から質問を生成する場合でも、その項目が指している**元のセクション（例: [3.1 ユーザー登録フロー]）**を参照してください。
+    -   **例:** 「[3.1 ユーザー登録フロー] ユーザーIDの文字数制限について、仕様を明確にしてください。」
+    -   適切な参照箇所が本文中に見つからない場合にのみ、この接頭辞は不要です。
 
 あなたの質問は、ユーザーが設計の穴に気づき、より堅牢なドキュメントを作成するための、鋭い洞察に満ちたものでなければなりません。`;
 const DEFAULT_QG_USER_PROMPT = "以下のMarkdownドキュメントを読み、「未確定事項」としてリストアップされている各項目を、ユーザーが回答しやすい明確な質問形式に変換してください。さらに、各質問に対して、ユーザーが選択できる簡潔な回答の候補（サジェスト）を1〜3個生成してください。もし「未確定事項」セクションがない、あるいは項目が空の場合は、ドキュメント全体から内容を明確化するためにユーザーに尋ねるべき質問と、それに対する回答のサジェストを生成してください。";
@@ -973,7 +977,7 @@ export default function App() {
               </button>
             </div>
             {pdfFile && (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden xl:sticky xl:top-8">
                 <CollapsibleSection title="PDFプレビュー" isOpen={isPdfPreviewOpen} onToggle={() => setIsPdfPreviewOpen(!isPdfPreviewOpen)}>
                     <PdfPreview file={pdfFile} />
                 </CollapsibleSection>
@@ -1098,6 +1102,20 @@ export default function App() {
             })}
           </div>
         </div>
+        <footer className="text-center py-6 mt-12 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <p>&copy; {new Date().getFullYear()} PDF設計書アナライザー. All Rights Reserved.</p>
+            <a
+              href="https://forms.gle/97qvaNivZQ84TM1b8"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-transparent text-xs font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:bg-gray-700 dark:hover:bg-gray-600 dark:focus:ring-offset-gray-900"
+            >
+              <BugAntIcon className="h-4 w-4" />
+              バグ報告・機能要望
+            </a>
+          </div>
+        </footer>
       </main>
     </div>
   );

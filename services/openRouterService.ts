@@ -230,18 +230,18 @@ export const generateClarificationQuestionsWithOpenRouter = async (
   isThinkingEnabled?: boolean
 ): Promise<{ questions: Question[]; debug: { request: any; response: any; }; usage: UsageInfo | null; }> => {
   const fullPrompt = `${userPrompt}
-  レスポンスは以下のJSON形式のみで出力してください。他のテキストは含めないでください。
-  **重要: JSON文字列内のダブルクォートは \\" のように、必ずエスケープしてください。**
+  
+  レスポンスは以下のJSON形式の例に厳密に従ってください。他のテキストは含めないでください。
   \`\`\`json
   {
     "questions": [
       { 
-        "question": "ここに質問文1が入ります",
-        "suggestions": ["サジェスト1", "サジェスト2"]
+        "question": "[3.1 ユーザー登録フロー] ユーザーIDの文字数制限について、仕様を明確にしてください。",
+        "suggestions": ["8〜16文字の半角英数字", "12文字以上の半角英数字と記号"]
       },
       { 
-        "question": "ここに質問文2が入ります",
-        "suggestions": ["サジェストA", "サジェストB", "サジェストC"]
+        "question": "[4.2 エラーハンドリング] データベース接続エラー時の具体的な画面表示やユーザー通知方法を教えてください。",
+        "suggestions": ["「サーバーエラーが発生しました」という汎用メッセージを表示", "メンテナンス中画面へ遷移させる", "自動的にリトライ処理を行う"]
       }
     ]
   }
