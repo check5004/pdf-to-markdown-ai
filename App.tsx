@@ -315,7 +315,7 @@ export default function App() {
   
   // Misc state
   const [exchangeRateInfo, setExchangeRateInfo] = useState<ExchangeRateInfo | null>(null);
-  const [showDocs, setShowDocs] = useState<boolean>(false);
+  const [showDocs, setShowDocs] = useState<boolean>(window.location.hash === '#docs');
 
   // --- AI Settings State ---
   // 1. Initial Analysis
@@ -354,6 +354,29 @@ export default function App() {
   const [account, setAccount] = useState<any | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+  // Sync URL hash with showDocs state
+  useEffect(() => {
+    if (showDocs) {
+      window.location.hash = 'docs';
+    } else {
+      if (window.location.hash === '#docs') {
+        // Use pushState to remove hash without reloading and adding to history
+        window.history.pushState("", document.title, window.location.pathname + window.location.search);
+      }
+    }
+  }, [showDocs]);
+
+  // Listen for hash changes (e.g., browser back/forward buttons)
+  useEffect(() => {
+    const handleHashChange = () => {
+      setShowDocs(window.location.hash === '#docs');
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, []);
 
   // Sync refinement model with main model if it hasn't been manually changed
   useEffect(() => {
