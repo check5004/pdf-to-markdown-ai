@@ -52,3 +52,8 @@ export interface AnalysisResult {
   usageInfo: UsageInfo | null;
   debugInfo: { request: any; response: any; generationResponse?: any; } | null;
 }
+
+export interface ExchangeRateInfo {
+  rate: number;
+  lastUpdated: number;
+}

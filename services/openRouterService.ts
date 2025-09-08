@@ -23,11 +23,21 @@ export const fetchModels = async (apiKey: string): Promise<OpenRouterModel[]> =>
     }
 
     const { data } = await response.json();
+
+    if (!Array.isArray(data)) {
+        console.error("OpenRouter API response for /models did not contain a 'data' array.", data);
+        throw new Error("OpenRouterから無効なモデルリストが返されました。");
+    }
     
     const visionModelKeywords = ['openai', 'google', 'xai', 'meta', 'anthropic'];
 
     return data
-      .filter((model: any) => visionModelKeywords.some(keyword => model.id.toLowerCase().includes(keyword)))
+      .filter((model: any) => {
+        if (!model || typeof model.id !== 'string') {
+          return false;
+        }
+        return visionModelKeywords.some(keyword => model.id.toLowerCase().includes(keyword));
+      })
       .map((model: any): OpenRouterModel => {
         // OpenRouter's API returns the price per token. We convert it to price per 1M tokens for display.
         const promptCostPerMillion = (parseFloat(model.pricing?.prompt ?? '0') * 1_000_000).toString();
@@ -68,7 +78,7 @@ export const fetchModels = async (apiKey: string): Promise<OpenRouterModel[]> =>
 
         return {
           id: model.id,
-          name: model.name,
+          name: model.name || model.id,
           description: model.description || '',
           pricing: {
             prompt: promptCostPerMillion,
