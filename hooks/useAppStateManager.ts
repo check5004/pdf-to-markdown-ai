@@ -495,6 +495,156 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         selectedOpenRouterModel &&
         !selectedOpenRouterModel.modality_types.includes('image_input');
 
+      const handleExportSettings = useCallback(() => {
+        const getSelectedPresetName = (selectedId: string, presetsList: PromptPreset[]) => {
+            if (selectedId === 'default') {
+                return undefined;
+            }
+            return presetsList.find(p => p.id === selectedId)?.name;
+        };
+
+        const settingsToExport = {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            settings: {
+                main: {
+                    personaPrompt,
+                    userPrompt,
+                    temperature,
+                    selectedPresetName: getSelectedPresetName(selectedPresetId, presets),
+                    presets: presets.map(({ name, personaPrompt, userPrompt, temperature }) => ({ name, personaPrompt, userPrompt, temperature }))
+                },
+                qg: {
+                    personaPrompt: qgPersonaPrompt,
+                    userPrompt: qgUserPrompt,
+                    temperature: qgTemperature,
+                    selectedPresetName: getSelectedPresetName(selectedQgPresetId, qgPresets),
+                    presets: qgPresets.map(({ name, personaPrompt, userPrompt, temperature }) => ({ name, personaPrompt, userPrompt, temperature }))
+                },
+                refine: {
+                    personaPrompt: refinePersonaPrompt,
+                    userPrompt: refineUserPrompt,
+                    temperature: refineTemperature,
+                    selectedPresetName: getSelectedPresetName(selectedRefinePresetId, refinePresets),
+                    presets: refinePresets.map(({ name, personaPrompt, userPrompt, temperature }) => ({ name, personaPrompt, userPrompt, temperature }))
+                },
+                diff: {
+                    personaPrompt: diffPersonaPrompt,
+                    userPrompt: diffUserPrompt,
+                    temperature: diffTemperature,
+                    selectedPresetName: getSelectedPresetName(selectedDiffPresetId, diffPresets),
+                    presets: diffPresets.map(({ name, personaPrompt, userPrompt, temperature }) => ({ name, personaPrompt, userPrompt, temperature }))
+                }
+            }
+        };
+
+        const blob = new Blob([JSON.stringify(settingsToExport, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pdf-analyzer-settings-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, [
+        personaPrompt, userPrompt, temperature, presets, selectedPresetId,
+        qgPersonaPrompt, qgUserPrompt, qgTemperature, qgPresets, selectedQgPresetId,
+        refinePersonaPrompt, refineUserPrompt, refineTemperature, refinePresets, selectedRefinePresetId,
+        diffPersonaPrompt, diffUserPrompt, diffTemperature, diffPresets, selectedDiffPresetId
+    ]);
+
+    const handleImportSettings = useCallback(async (file: File) => {
+        return new Promise<void>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const text = event.target?.result as string;
+                    const data = JSON.parse(text);
+
+                    // Validation
+                    if (data.version !== 1 || !data.settings) {
+                        throw new Error("ファイル形式が正しくありません。");
+                    }
+                    const requiredKeys = ['main', 'qg', 'refine', 'diff'];
+                    if (!requiredKeys.every(key => key in data.settings)) {
+                        throw new Error("ファイルに必要な設定セクションが不足しています。");
+                    }
+
+                    // Import main settings
+                    const main = data.settings.main;
+                    if (main) {
+                        setPersonaPrompt(main.personaPrompt || DEFAULT_PERSONA_PROMPT);
+                        setUserPrompt(main.userPrompt || DEFAULT_USER_PROMPT);
+                        setTemperature(main.temperature ?? DEFAULT_TEMPERATURE);
+                        const mainNewPresets: PromptPreset[] = Array.isArray(main.presets)
+                            ? main.presets.map((p: any) => ({ id: self.crypto.randomUUID(), name: p.name, personaPrompt: p.personaPrompt, userPrompt: p.userPrompt, temperature: p.temperature }))
+                            : [];
+                        setPresets(mainNewPresets);
+                        const mainSelectedPreset = main.selectedPresetName ? mainNewPresets.find(p => p.name === main.selectedPresetName) : undefined;
+                        setSelectedPresetId(mainSelectedPreset ? mainSelectedPreset.id : 'default');
+                    }
+
+                    // Import QG settings
+                    const qg = data.settings.qg;
+                    if (qg) {
+                        setQgPersonaPrompt(qg.personaPrompt || DEFAULT_QG_PERSONA_PROMPT);
+                        setQgUserPrompt(qg.userPrompt || DEFAULT_QG_USER_PROMPT);
+                        setQgTemperature(qg.temperature ?? DEFAULT_QG_TEMPERATURE);
+                        const qgNewPresets: PromptPreset[] = Array.isArray(qg.presets)
+                            ? qg.presets.map((p: any) => ({ id: self.crypto.randomUUID(), name: p.name, personaPrompt: p.personaPrompt, userPrompt: p.userPrompt, temperature: p.temperature }))
+                            : [];
+                        setQgPresets(qgNewPresets);
+                        const qgSelectedPreset = qg.selectedPresetName ? qgNewPresets.find(p => p.name === qg.selectedPresetName) : undefined;
+                        setSelectedQgPresetId(qgSelectedPreset ? qgSelectedPreset.id : 'default');
+                    }
+
+                    // Import Refine settings
+                    const refine = data.settings.refine;
+                    if (refine) {
+                        setRefinePersonaPrompt(refine.personaPrompt || DEFAULT_REFINE_PERSONA_PROMPT);
+                        setRefineUserPrompt(refine.userPrompt || DEFAULT_REFINE_USER_PROMPT);
+                        setRefineTemperature(refine.temperature ?? DEFAULT_REFINE_TEMPERATURE);
+                        const refineNewPresets: PromptPreset[] = Array.isArray(refine.presets)
+                            ? refine.presets.map((p: any) => ({ id: self.crypto.randomUUID(), name: p.name, personaPrompt: p.personaPrompt, userPrompt: p.userPrompt, temperature: p.temperature }))
+                            : [];
+                        setRefinePresets(refineNewPresets);
+                        const refineSelectedPreset = refine.selectedPresetName ? refineNewPresets.find(p => p.name === refine.selectedPresetName) : undefined;
+                        setSelectedRefinePresetId(refineSelectedPreset ? refineSelectedPreset.id : 'default');
+                    }
+
+                    // Import Diff settings
+                    const diff = data.settings.diff;
+                    if (diff) {
+                        setDiffPersonaPrompt(diff.personaPrompt || DEFAULT_DIFF_PERSONA_PROMPT);
+                        setDiffUserPrompt(diff.userPrompt || DEFAULT_DIFF_USER_PROMPT);
+                        setDiffTemperature(diff.temperature ?? DEFAULT_DIFF_TEMPERATURE);
+                        const diffNewPresets: PromptPreset[] = Array.isArray(diff.presets)
+                            ? diff.presets.map((p: any) => ({ id: self.crypto.randomUUID(), name: p.name, personaPrompt: p.personaPrompt, userPrompt: p.userPrompt, temperature: p.temperature }))
+                            : [];
+                        setDiffPresets(diffNewPresets);
+                        const diffSelectedPreset = diff.selectedPresetName ? diffNewPresets.find(p => p.name === diff.selectedPresetName) : undefined;
+                        setSelectedDiffPresetId(diffSelectedPreset ? diffSelectedPreset.id : 'default');
+                    }
+                    
+                    resolve();
+
+                } catch (e: any) {
+                    reject(new Error(e.message || "ファイルの読み込みまたは解析に失敗しました。"));
+                }
+            };
+            reader.onerror = () => {
+                reject(new Error("ファイルの読み込みに失敗しました。"));
+            };
+            reader.readAsText(file);
+        });
+    }, [
+        setPersonaPrompt, setUserPrompt, setTemperature, setPresets, setSelectedPresetId,
+        setQgPersonaPrompt, setQgUserPrompt, setQgTemperature, setQgPresets, setSelectedQgPresetId,
+        setRefinePersonaPrompt, setRefineUserPrompt, setRefineTemperature, setRefinePresets, setSelectedRefinePresetId,
+        setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, setDiffPresets, setSelectedDiffPresetId
+    ]);
+      
     return {
         // State
         mode, analysisMode, openRouterApiKey, isApiKeyInvalid, openRouterModel, availableModels, isFreeModelSelected, isThinkingEnabled,
@@ -513,6 +663,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         
         // Handlers
         handleFileSelect, handleAnalysis, handleGenerateQuestions, handleRefineDocument, handleGenerateDiff, handleDownload, handleCopy,
+        handleExportSettings, handleImportSettings,
 
         // Derived State
         isAnalyzeDisabled, isAnyLoading, showImageCapabilityWarning,

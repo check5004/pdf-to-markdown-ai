@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
 import { PromptPreset, Mode, OpenRouterModel } from '../types';
-import { ArrowPathIcon } from './Icons';
+import { ArrowPathIcon, DocumentDuplicateIcon } from './Icons';
 import PromptConfigurationPanel from './PromptConfigurationPanel';
+import SettingsImportExportModal from './SettingsImportExportModal';
 
 type SettingType = 'main' | 'qg' | 'refine' | 'diff';
 
@@ -48,6 +50,10 @@ interface PromptSettingsProps {
   isGeminiAvailable: boolean;
   availableModels: OpenRouterModel[];
   openRouterApiKey: string;
+
+  // Import/Export Handlers
+  onExport: () => void;
+  onImport: (file: File) => Promise<void>;
 }
 
 const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
@@ -56,6 +62,7 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
   const [qgPresetName, setQgPresetName] = useState('');
   const [refinePresetName, setRefinePresetName] = useState('');
   const [diffPresetName, setDiffPresetName] = useState('');
+  const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
 
   const tabClasses = (tab: SettingType) => 
     `px-4 py-2 text-sm font-medium rounded-t-lg transition-colors focus:outline-none ${
@@ -120,7 +127,15 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
         />
       </div>
 
-       <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-600">
+       <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-600">
+        <button
+          onClick={() => setIsImportExportModalOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          title="現在の全タブのAI設定をJSONファイルとしてエクスポート、またはファイルからインポートします。"
+        >
+          <DocumentDuplicateIcon className="h-4 w-4" />
+          設定のエクスポート / インポート
+        </button>
         <button
           onClick={() => currentSettings.onLoadPreset('default')}
           className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
@@ -129,6 +144,13 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
           現在のタブをデフォルトにリセット
         </button>
       </div>
+
+      <SettingsImportExportModal
+        isOpen={isImportExportModalOpen}
+        onClose={() => setIsImportExportModalOpen(false)}
+        onExport={props.onExport}
+        onImport={props.onImport}
+      />
     </div>
   );
 };
