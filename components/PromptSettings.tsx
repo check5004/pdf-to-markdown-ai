@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { PromptPreset, Mode, OpenRouterModel } from '../types';
 import { ArrowPathIcon, DocumentDuplicateIcon } from './Icons';
@@ -13,36 +12,44 @@ interface PromptSettingsProps {
     personaPrompt: string; setPersonaPrompt: (v: string) => void;
     userPrompt: string; setUserPrompt: (v: string) => void;
     temperature: number; setTemperature: (v: number) => void;
-    presets: PromptPreset[]; selectedPresetId: string;
+    presets: PromptPreset[]; selectedPresetId: string; setSelectedPresetId: (v: string) => void;
     onSavePreset: (name: string) => void; onLoadPreset: (id: string) => void; onDeletePreset: (id: string) => void;
     openRouterModel: string;
+    presetName: string; setPresetName: (v: string) => void;
+    defaultPreset: PromptPreset;
   };
   // Question Generation Settings
   qg: {
     personaPrompt: string; setPersonaPrompt: (v: string) => void;
     userPrompt: string; setUserPrompt: (v: string) => void;
     temperature: number; setTemperature: (v: number) => void;
-    presets: PromptPreset[]; selectedPresetId: string;
+    presets: PromptPreset[]; selectedPresetId: string; setSelectedPresetId: (v: string) => void;
     onSavePreset: (name: string) => void; onLoadPreset: (id: string) => void; onDeletePreset: (id: string) => void;
     openRouterModel: string; setOpenRouterModel: (id: string) => void;
+    presetName: string; setPresetName: (v: string) => void;
+    defaultPreset: PromptPreset;
   };
   // Refinement Settings
   refine: {
     personaPrompt: string; setPersonaPrompt: (v: string) => void;
     userPrompt: string; setUserPrompt: (v: string) => void;
     temperature: number; setTemperature: (v: number) => void;
-    presets: PromptPreset[]; selectedPresetId: string;
+    presets: PromptPreset[]; selectedPresetId: string; setSelectedPresetId: (v: string) => void;
     onSavePreset: (name: string) => void; onLoadPreset: (id: string) => void; onDeletePreset: (id: string) => void;
     openRouterModel: string; setOpenRouterModel: (id: string) => void;
+    presetName: string; setPresetName: (v: string) => void;
+    defaultPreset: PromptPreset;
   };
   // Diff Generation Settings
   diff: {
     personaPrompt: string; setPersonaPrompt: (v: string) => void;
     userPrompt: string; setUserPrompt: (v: string) => void;
     temperature: number; setTemperature: (v: number) => void;
-    presets: PromptPreset[]; selectedPresetId: string;
+    presets: PromptPreset[]; selectedPresetId: string; setSelectedPresetId: (v: string) => void;
     onSavePreset: (name: string) => void; onLoadPreset: (id: string) => void; onDeletePreset: (id: string) => void;
     openRouterModel: string; setOpenRouterModel: (id: string) => void;
+    presetName: string; setPresetName: (v: string) => void;
+    defaultPreset: PromptPreset;
   };
   
   // Shared Info
@@ -58,10 +65,6 @@ interface PromptSettingsProps {
 
 const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
   const [activeTab, setActiveTab] = useState<SettingType>('main');
-  const [mainPresetName, setMainPresetName] = useState('');
-  const [qgPresetName, setQgPresetName] = useState('');
-  const [refinePresetName, setRefinePresetName] = useState('');
-  const [diffPresetName, setDiffPresetName] = useState('');
   const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
 
   const tabClasses = (tab: SettingType) => 
@@ -70,13 +73,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
       ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 border-l border-t border-r -mb-px' 
       : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700'
     }`;
-
-  const getPresetNameState = (tab: SettingType): [string, (name: string) => void] => {
-    if (tab === 'qg') return [qgPresetName, setQgPresetName];
-    if (tab === 'refine') return [refinePresetName, setRefinePresetName];
-    if (tab === 'diff') return [diffPresetName, setDiffPresetName];
-    return [mainPresetName, setMainPresetName];
-  };
 
   const getSettingsForTab = (tab: SettingType) => {
     switch (tab) {
@@ -88,7 +84,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
   };
 
   const currentSettings: any = getSettingsForTab(activeTab);
-  const [currentPresetName, setCurrentPresetName] = getPresetNameState(activeTab);
 
   return (
     <div className="space-y-6">
@@ -112,6 +107,7 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
           setTemperature={currentSettings.setTemperature}
           presets={currentSettings.presets}
           selectedPresetId={currentSettings.selectedPresetId}
+          setSelectedPresetId={currentSettings.setSelectedPresetId}
           onSavePreset={currentSettings.onSavePreset}
           onLoadPreset={currentSettings.onLoadPreset}
           onDeletePreset={currentSettings.onDeletePreset}
@@ -121,8 +117,9 @@ const PromptSettings: React.FC<PromptSettingsProps> = (props) => {
           setOpenRouterModel={currentSettings.setOpenRouterModel}
           availableModels={props.availableModels}
           openRouterApiKey={props.openRouterApiKey}
-          presetName={currentPresetName}
-          setPresetName={setCurrentPresetName}
+          presetName={currentSettings.presetName}
+          setPresetName={currentSettings.setPresetName}
+          defaultPreset={currentSettings.defaultPreset}
           showModelSelector={activeTab !== 'main'}
         />
       </div>

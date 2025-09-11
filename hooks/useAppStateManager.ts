@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Mode, OpenRouterModel, PromptPreset, AnalysisMode, UsageInfo, Question, AnalysisResult, ExchangeRateInfo } from '../types';
 import useLocalStorage from './useLocalStorage';
@@ -54,6 +53,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
     const [temperature, setTemperature] = useLocalStorage<number>('ai-temperature', DEFAULT_TEMPERATURE);
     const [presets, setPresets] = useLocalStorage<PromptPreset[]>('ai-presets', []);
     const [selectedPresetId, setSelectedPresetId] = useLocalStorage<string>('ai-selected-preset-id', 'default');
+    const [mainPresetName, setMainPresetName] = useState('');
     
     const [qgOpenRouterModel, setQgOpenRouterModel] = useLocalStorage<string>('qg-openrouter-model', 'google/gemini-2.5-flash');
     const [qgPersonaPrompt, setQgPersonaPrompt] = useLocalStorage<string>('qg-persona-prompt', DEFAULT_QG_PERSONA_PROMPT);
@@ -61,6 +61,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
     const [qgTemperature, setQgTemperature] = useLocalStorage<number>('qg-temperature', DEFAULT_QG_TEMPERATURE);
     const [qgPresets, setQgPresets] = useLocalStorage<PromptPreset[]>('qg-presets', []);
     const [selectedQgPresetId, setSelectedQgPresetId] = useLocalStorage<string>('qg-selected-preset-id', 'default');
+    const [qgPresetName, setQgPresetName] = useState('');
 
     const [refineOpenRouterModel, setRefineOpenRouterModel] = useLocalStorage<string>('refine-openrouter-model', 'google/gemini-2.5-flash');
     const [refinePersonaPrompt, setRefinePersonaPrompt] = useLocalStorage<string>('refine-persona-prompt', DEFAULT_REFINE_PERSONA_PROMPT);
@@ -68,6 +69,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
     const [refineTemperature, setRefineTemperature] = useLocalStorage<number>('refine-temperature', DEFAULT_REFINE_TEMPERATURE);
     const [refinePresets, setRefinePresets] = useLocalStorage<PromptPreset[]>('refine-presets', []);
     const [selectedRefinePresetId, setSelectedRefinePresetId] = useLocalStorage<string>('refine-selected-preset-id', 'default');
+    const [refinePresetName, setRefinePresetName] = useState('');
     
     const [diffOpenRouterModel, setDiffOpenRouterModel] = useLocalStorage<string>('diff-openrouter-model', 'google/gemini-2.5-flash');
     const [diffPersonaPrompt, setDiffPersonaPrompt] = useLocalStorage<string>('diff-persona-prompt', DEFAULT_DIFF_PERSONA_PROMPT);
@@ -75,6 +77,14 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
     const [diffTemperature, setDiffTemperature] = useLocalStorage<number>('diff-temperature', DEFAULT_DIFF_TEMPERATURE);
     const [diffPresets, setDiffPresets] = useLocalStorage<PromptPreset[]>('diff-presets', []);
     const [selectedDiffPresetId, setSelectedDiffPresetId] = useLocalStorage<string>('diff-selected-preset-id', 'default');
+    const [diffPresetName, setDiffPresetName] = useState('');
+
+    const defaultPresets = useMemo(() => ({
+      main: { id: 'default', name: 'デフォルト設定', personaPrompt: DEFAULT_PERSONA_PROMPT, userPrompt: DEFAULT_USER_PROMPT, temperature: DEFAULT_TEMPERATURE },
+      qg: { id: 'default', name: 'デフォルト設定', personaPrompt: DEFAULT_QG_PERSONA_PROMPT, userPrompt: DEFAULT_QG_USER_PROMPT, temperature: DEFAULT_QG_TEMPERATURE },
+      refine: { id: 'default', name: 'デフォルト設定', personaPrompt: DEFAULT_REFINE_PERSONA_PROMPT, userPrompt: DEFAULT_REFINE_USER_PROMPT, temperature: DEFAULT_REFINE_TEMPERATURE },
+      diff: { id: 'default', name: 'デフォルト設定', personaPrompt: DEFAULT_DIFF_PERSONA_PROMPT, userPrompt: DEFAULT_DIFF_USER_PROMPT, temperature: DEFAULT_DIFF_TEMPERATURE },
+    }), []);
 
     const selectedOpenRouterModel = useMemo(() => {
         if (mode === Mode.OPENROUTER && openRouterModel && availableModels.length > 0) {
@@ -446,9 +456,11 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
       
       const createPresetHandlers = (
           presets: PromptPreset[], setPresets: (p: PromptPreset[] | ((val: PromptPreset[]) => PromptPreset[])) => void,
+          selectedPresetId: string,
           setSelectedId: (id: string | ((val: string) => string)) => void,
           setPersona: (p: string | ((val: string) => string)) => void, setUser: (p: string | ((val: string) => string)) => void, setTemp: (t: number | ((val: number) => number)) => void,
-          defaults: { persona: string, user: string, temp: number },
+          setPresetName: (name: string) => void,
+          defaults: PromptPreset,
           currentPersonaPrompt: string,
           currentUserPrompt: string,
           currentTemperature: number
@@ -468,23 +480,28 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
               setSelectedId(id);
               const preset = presets.find(p => p.id === id);
               if (id === 'default' || !preset) {
-                  setPersona(defaults.persona); setUser(defaults.user); setTemp(defaults.temp);
+                  setPersona(defaults.personaPrompt); setUser(defaults.userPrompt); setTemp(defaults.temperature);
               } else {
                   setPersona(preset.personaPrompt); setUser(preset.userPrompt); setTemp(preset.temperature);
               }
           },
           onDeletePreset: (id: string) => {
-              if (!confirm('このプリセットを削除してもよろしいですか？')) return;
-              setPresets(presets.filter(p => p.id !== id));
-              setSelectedId('default');
-              setPersona(defaults.persona); setUser(defaults.user); setTemp(defaults.temp);
-          }
+            const presetToDelete = presets.find(p => p.id === id);
+            if (!presetToDelete) return;
+        
+            setPresets(prev => prev.filter(p => p.id !== id));
+        
+            if (id === selectedPresetId) {
+                setSelectedId('custom');
+                setPresetName(presetToDelete.name);
+            }
+        }
       });
     
-      const mainPresetHandlers = createPresetHandlers(presets, setPresets, setSelectedPresetId, setPersonaPrompt, setUserPrompt, setTemperature, { persona: DEFAULT_PERSONA_PROMPT, user: DEFAULT_USER_PROMPT, temp: DEFAULT_TEMPERATURE }, personaPrompt, userPrompt, temperature);
-      const qgPresetHandlers = createPresetHandlers(qgPresets, setQgPresets, setSelectedQgPresetId, setQgPersonaPrompt, setQgUserPrompt, setQgTemperature, { persona: DEFAULT_QG_PERSONA_PROMPT, user: DEFAULT_QG_USER_PROMPT, temp: DEFAULT_QG_TEMPERATURE }, qgPersonaPrompt, qgUserPrompt, qgTemperature);
-      const refinePresetHandlers = createPresetHandlers(refinePresets, setRefinePresets, setSelectedRefinePresetId, setRefinePersonaPrompt, setRefineUserPrompt, setRefineTemperature, { persona: DEFAULT_REFINE_PERSONA_PROMPT, user: DEFAULT_REFINE_USER_PROMPT, temp: DEFAULT_REFINE_TEMPERATURE }, refinePersonaPrompt, refineUserPrompt, refineTemperature);
-      const diffPresetHandlers = createPresetHandlers(diffPresets, setDiffPresets, setSelectedDiffPresetId, setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, { persona: DEFAULT_DIFF_PERSONA_PROMPT, user: DEFAULT_DIFF_USER_PROMPT, temp: DEFAULT_DIFF_TEMPERATURE }, diffPersonaPrompt, diffUserPrompt, diffTemperature);
+      const mainPresetHandlers = useMemo(() => createPresetHandlers(presets, setPresets, selectedPresetId, setSelectedPresetId, setPersonaPrompt, setUserPrompt, setTemperature, setMainPresetName, defaultPresets.main, personaPrompt, userPrompt, temperature), [presets, selectedPresetId, setPresets, setSelectedPresetId, setPersonaPrompt, setUserPrompt, setTemperature, setMainPresetName, defaultPresets.main, personaPrompt, userPrompt, temperature]);
+      const qgPresetHandlers = useMemo(() => createPresetHandlers(qgPresets, setQgPresets, selectedQgPresetId, setSelectedQgPresetId, setQgPersonaPrompt, setQgUserPrompt, setQgTemperature, setQgPresetName, defaultPresets.qg, qgPersonaPrompt, qgUserPrompt, qgTemperature), [qgPresets, selectedQgPresetId, setQgPresets, setSelectedQgPresetId, setQgPersonaPrompt, setQgUserPrompt, setQgTemperature, setQgPresetName, defaultPresets.qg, qgPersonaPrompt, qgUserPrompt, qgTemperature]);
+      const refinePresetHandlers = useMemo(() => createPresetHandlers(refinePresets, setRefinePresets, selectedRefinePresetId, setSelectedRefinePresetId, setRefinePersonaPrompt, setRefineUserPrompt, setRefineTemperature, setRefinePresetName, defaultPresets.refine, refinePersonaPrompt, refineUserPrompt, refineTemperature), [refinePresets, selectedRefinePresetId, setRefinePresets, setSelectedRefinePresetId, setRefinePersonaPrompt, setRefineUserPrompt, setRefineTemperature, setRefinePresetName, defaultPresets.refine, refinePersonaPrompt, refineUserPrompt, refineTemperature]);
+      const diffPresetHandlers = useMemo(() => createPresetHandlers(diffPresets, setDiffPresets, selectedDiffPresetId, setSelectedDiffPresetId, setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, setDiffPresetName, defaultPresets.diff, diffPersonaPrompt, diffUserPrompt, diffTemperature), [diffPresets, selectedDiffPresetId, setDiffPresets, setSelectedDiffPresetId, setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, setDiffPresetName, defaultPresets.diff, diffPersonaPrompt, diffUserPrompt, diffTemperature]);
     
       const isAnalyzeDisabled = isLoading || !pdfFile || (mode === Mode.OPENROUTER && (!openRouterApiKey || !openRouterModel)) || (mode === Mode.GEMINI && (!isAuthorized || !isGeminiAvailable));
       const isAnyLoading = isLoading || isGeneratingQuestions || isRefining || isGeneratingDiff;
@@ -627,6 +644,12 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
                         setSelectedDiffPresetId(diffSelectedPreset ? diffSelectedPreset.id : 'default');
                     }
                     
+                    // Also clear transient preset name input fields
+                    setMainPresetName('');
+                    setQgPresetName('');
+                    setRefinePresetName('');
+                    setDiffPresetName('');
+                    
                     resolve();
 
                 } catch (e: any) {
@@ -642,7 +665,8 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         setPersonaPrompt, setUserPrompt, setTemperature, setPresets, setSelectedPresetId,
         setQgPersonaPrompt, setQgUserPrompt, setQgTemperature, setQgPresets, setSelectedQgPresetId,
         setRefinePersonaPrompt, setRefineUserPrompt, setRefineTemperature, setRefinePresets, setSelectedRefinePresetId,
-        setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, setDiffPresets, setSelectedDiffPresetId
+        setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, setDiffPresets, setSelectedDiffPresetId,
+        setMainPresetName, setQgPresetName, setRefinePresetName, setDiffPresetName
     ]);
       
     return {
@@ -653,10 +677,10 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         exchangeRateInfo, selectedOpenRouterModel,
 
         // AI Settings
-        mainSettings: { personaPrompt, setPersonaPrompt, userPrompt, setUserPrompt, temperature, setTemperature, presets, selectedPresetId, ...mainPresetHandlers, openRouterModel },
-        qgSettings: { personaPrompt: qgPersonaPrompt, setPersonaPrompt: setQgPersonaPrompt, userPrompt: qgUserPrompt, setUserPrompt: setQgUserPrompt, temperature: qgTemperature, setTemperature: setQgTemperature, presets: qgPresets, selectedPresetId: selectedQgPresetId, ...qgPresetHandlers, openRouterModel: qgOpenRouterModel, setOpenRouterModel: setQgOpenRouterModel },
-        refineSettings: { personaPrompt: refinePersonaPrompt, setPersonaPrompt: setRefinePersonaPrompt, userPrompt: refineUserPrompt, setUserPrompt: setRefineUserPrompt, temperature: refineTemperature, setTemperature: setRefineTemperature, presets: refinePresets, selectedPresetId: selectedRefinePresetId, ...refinePresetHandlers, openRouterModel: refineOpenRouterModel, setOpenRouterModel: handleRefineModelChange },
-        diffSettings: { personaPrompt: diffPersonaPrompt, setPersonaPrompt: setDiffPersonaPrompt, userPrompt: diffUserPrompt, setUserPrompt: setDiffUserPrompt, temperature: diffTemperature, setTemperature: setDiffTemperature, presets: diffPresets, selectedPresetId: selectedDiffPresetId, ...diffPresetHandlers, openRouterModel: diffOpenRouterModel, setOpenRouterModel: setDiffOpenRouterModel },
+        mainSettings: { personaPrompt, setPersonaPrompt, userPrompt, setUserPrompt, temperature, setTemperature, presets, selectedPresetId, setSelectedPresetId, ...mainPresetHandlers, openRouterModel, presetName: mainPresetName, setPresetName: setMainPresetName, defaultPreset: defaultPresets.main },
+        qgSettings: { personaPrompt: qgPersonaPrompt, setPersonaPrompt: setQgPersonaPrompt, userPrompt: qgUserPrompt, setUserPrompt: setQgUserPrompt, temperature: qgTemperature, setTemperature: setQgTemperature, presets: qgPresets, selectedPresetId: selectedQgPresetId, setSelectedPresetId: setSelectedQgPresetId, ...qgPresetHandlers, openRouterModel: qgOpenRouterModel, setOpenRouterModel: setQgOpenRouterModel, presetName: qgPresetName, setPresetName: setQgPresetName, defaultPreset: defaultPresets.qg },
+        refineSettings: { personaPrompt: refinePersonaPrompt, setPersonaPrompt: setRefinePersonaPrompt, userPrompt: refineUserPrompt, setUserPrompt: setRefineUserPrompt, temperature: refineTemperature, setTemperature: setRefineTemperature, presets: refinePresets, selectedPresetId: selectedRefinePresetId, setSelectedPresetId: setSelectedRefinePresetId, ...refinePresetHandlers, openRouterModel: refineOpenRouterModel, setOpenRouterModel: handleRefineModelChange, presetName: refinePresetName, setPresetName: setRefinePresetName, defaultPreset: defaultPresets.refine },
+        diffSettings: { personaPrompt: diffPersonaPrompt, setPersonaPrompt: setDiffPersonaPrompt, userPrompt: diffUserPrompt, setUserPrompt: setDiffUserPrompt, temperature: diffTemperature, setTemperature: setDiffTemperature, presets: diffPresets, selectedPresetId: selectedDiffPresetId, setSelectedPresetId: setSelectedDiffPresetId, ...diffPresetHandlers, openRouterModel: diffOpenRouterModel, setOpenRouterModel: setDiffOpenRouterModel, presetName: diffPresetName, setPresetName: setDiffPresetName, defaultPreset: defaultPresets.diff },
 
         // Setters
         setMode, setAnalysisMode, setOpenRouterApiKey, setIsApiKeyInvalid, setOpenRouterModel, setIsThinkingEnabled, setIsPdfPreviewOpen,
