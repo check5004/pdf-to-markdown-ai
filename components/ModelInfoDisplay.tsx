@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { OpenRouterModel } from '../types';
-import { DocumentTextIcon, PhotoIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, BrainIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon } from './Icons';
+import { DocumentTextIcon, PhotoIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, BrainIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, DocumentIcon } from './Icons';
 import { formatCost } from '../utils';
 
 const ModelInfoDisplay: React.FC<{ model: OpenRouterModel | undefined; }> = ({ model }) => {
@@ -23,6 +23,7 @@ const ModelInfoDisplay: React.FC<{ model: OpenRouterModel | undefined; }> = ({ m
       <div className="flex justify-between items-start">
         <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">{model.name}</h3>
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
+          {model.modality_types.includes('pdf_input') && <DocumentIcon className="h-5 w-5" title="PDF Input" />}
           {model.modality_types.includes('text') && <DocumentTextIcon className="h-5 w-5" title="Text Input" />}
           {model.modality_types.includes('image_input') && <PhotoIcon className="h-5 w-5" title="Image Input" />}
           {model.modality_types.includes('audio_input') && <MicrophoneIcon className="h-5 w-5" title="Audio Input" />}

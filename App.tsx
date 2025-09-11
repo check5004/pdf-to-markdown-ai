@@ -49,7 +49,7 @@ export default function App() {
     <div className="min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200 font-sans">
       <main className="container mx-auto p-4 md:p-8">
         <header className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-primary-600 dark:text-primary-400">PDF設計書アナライザー</h1>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-primary-600 dark:text-primary-400" title="PDF Design Document Analyzer">PDF設計書アナライザー</h1>
           <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">複雑なPDF設計書をAIでクリーンなMarkdownドキュメントに変換します。</p>
         </header>
 

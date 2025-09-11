@@ -97,7 +97,10 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         if (!isGeminiAvailable && mode === Mode.GEMINI) {
             setMode(Mode.OPENROUTER);
         }
-    }, [isGeminiAvailable, mode, setMode]);
+        if (mode === Mode.GEMINI && analysisMode === 'pdf-direct') {
+            setAnalysisMode('image-with-text');
+        }
+    }, [isGeminiAvailable, mode, setMode, analysisMode, setAnalysisMode]);
 
     useEffect(() => {
         if (typeof window !== 'undefined' && 'pdfjsLib' in window) {
@@ -208,44 +211,57 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         setDiffMap({});
     
         try {
-          setProgressMessage('PDFファイルを読み込んでいます...');
-          const fileBuffer = await pdfFile.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise;
-          const pageImages: string[] = [];
-          let allTextContent: string | undefined = undefined;
-    
-          if (analysisMode === 'image-with-text') {
-            let textContentBuilder = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-              const page = await pdf.getPage(i);
-              const textContent = await page.getTextContent();
-              textContentBuilder += `--- Page ${i} ---\n${textContent.items.map((item: any) => item.str).join(' ')}\n\n`;
-            }
-            allTextContent = textContentBuilder;
-          }
-          
-          for (let i = 1; i <= pdf.numPages; i++) {
-            setProgressMessage(`${i}/${pdf.numPages}ページを処理中...`);
-            const page = await pdf.getPage(i);
-            const viewport = page.getViewport({ scale: 1.5 });
-            const canvas = document.createElement('canvas');
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            const context = canvas.getContext('2d');
-            if (context) {
-              await page.render({ canvasContext: context, viewport: viewport }).promise;
-              pageImages.push(canvas.toDataURL('image/jpeg'));
-            }
-          }
-          
           let analysisResponse: { result: string; debug: any; usage: UsageInfo | null };
+          let pageImages: string[] = [];
+          let allTextContent: string | undefined = undefined;
+          let base64Pdf: string | null = null;
+    
+          if (mode === Mode.OPENROUTER && analysisMode === 'pdf-direct') {
+            setProgressMessage('PDFをBase64に変換中...');
+            const base64String = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = error => reject(error);
+              reader.readAsDataURL(pdfFile);
+            });
+            base64Pdf = base64String as string;
+          } else {
+            setProgressMessage('PDFファイルを読み込んでいます...');
+            const fileBuffer = await pdfFile.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise;
+    
+            if (analysisMode === 'image-with-text') {
+              let textContentBuilder = '';
+              for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                textContentBuilder += `--- Page ${i} ---\n${textContent.items.map((item: any) => item.str).join(' ')}\n\n`;
+              }
+              allTextContent = textContentBuilder;
+            }
+            
+            for (let i = 1; i <= pdf.numPages; i++) {
+              setProgressMessage(`${i}/${pdf.numPages}ページを処理中...`);
+              const page = await pdf.getPage(i);
+              const viewport = page.getViewport({ scale: 1.5 });
+              const canvas = document.createElement('canvas');
+              canvas.height = viewport.height;
+              canvas.width = viewport.width;
+              const context = canvas.getContext('2d');
+              if (context) {
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                pageImages.push(canvas.toDataURL('image/jpeg'));
+              }
+            }
+          }
+          
           if (mode === Mode.GEMINI) {
             setProgressMessage('Geminiで解析中...');
             analysisResponse = await analyzeDocumentWithGemini(userPrompt, pageImages, personaPrompt, temperature, allTextContent);
           } else {
             setProgressMessage(`OpenRouter (${openRouterModel})で解析中...`);
             const isThinkingOn = !!(selectedOpenRouterModel?.supports_thinking && isThinkingEnabled);
-            analysisResponse = await analyzeDocumentWithOpenRouter(userPrompt, pageImages, openRouterModel, openRouterApiKey, personaPrompt, temperature, allTextContent, isThinkingOn);
+            analysisResponse = await analyzeDocumentWithOpenRouter(userPrompt, pageImages, base64Pdf, pdfFile.name, openRouterModel, openRouterApiKey, personaPrompt, temperature, allTextContent, isThinkingOn);
           }
           
           if (typeof analysisResponse.result === 'string') {
@@ -341,43 +357,57 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         setError('');
     
         try {
-           setProgressMessage('PDFを再読み込み中...');
-          const fileBuffer = await pdfFile.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise;
-          const pageImages: string[] = [];
+           let analysisResponse: { result: string; debug: any; usage: UsageInfo | null };
+          let pageImages: string[] = [];
           let allTextContent: string | undefined = undefined;
+          let base64Pdf: string | null = null;
     
-          if (analysisMode === 'image-with-text') {
-            let textContentBuilder = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-              const page = await pdf.getPage(i);
-              const textContent = await page.getTextContent();
-              textContentBuilder += `--- Page ${i} ---\n${textContent.items.map((item: any) => item.str).join(' ')}\n\n`;
+          if (mode === Mode.OPENROUTER && analysisMode === 'pdf-direct') {
+            setProgressMessage('PDFをBase64に変換中...');
+            const base64String = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = error => reject(error);
+              reader.readAsDataURL(pdfFile);
+            });
+            base64Pdf = base64String as string;
+          } else {
+            setProgressMessage('PDFファイルを読み込んでいます...');
+            const fileBuffer = await pdfFile.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise;
+    
+            if (analysisMode === 'image-with-text') {
+              let textContentBuilder = '';
+              for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                textContentBuilder += `--- Page ${i} ---\n${textContent.items.map((item: any) => item.str).join(' ')}\n\n`;
+              }
+              allTextContent = textContentBuilder;
             }
-            allTextContent = textContentBuilder;
-          }
-          for (let i = 1; i <= pdf.numPages; i++) {
-            setProgressMessage(`${i}/${pdf.numPages}ページを処理中...`);
-            const page = await pdf.getPage(i);
-            const viewport = page.getViewport({ scale: 1.5 });
-            const canvas = document.createElement('canvas');
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            const context = canvas.getContext('2d');
-            if (context) {
-              await page.render({ canvasContext: context, viewport: viewport }).promise;
-              pageImages.push(canvas.toDataURL('image/jpeg'));
+            
+            for (let i = 1; i <= pdf.numPages; i++) {
+              setProgressMessage(`${i}/${pdf.numPages}ページを処理中...`);
+              const page = await pdf.getPage(i);
+              const viewport = page.getViewport({ scale: 1.5 });
+              const canvas = document.createElement('canvas');
+              canvas.height = viewport.height;
+              canvas.width = viewport.width;
+              const context = canvas.getContext('2d');
+              if (context) {
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                pageImages.push(canvas.toDataURL('image/jpeg'));
+              }
             }
           }
           
-          let analysisResponse: { result: string; debug: any; usage: UsageInfo | null };
           if (mode === Mode.GEMINI) {
             setProgressMessage('Geminiで改良中...');
             analysisResponse = await analyzeDocumentWithGemini(fullRefineUserPrompt, pageImages, refinePersonaPrompt, refineTemperature, allTextContent);
           } else {
             setProgressMessage(`OpenRouter (${refineOpenRouterModel})で改良中...`);
             const isThinkingOn = !!(availableModels.find(m => m.id === refineOpenRouterModel)?.supports_thinking && isThinkingEnabled);
-            analysisResponse = await analyzeDocumentWithOpenRouter(fullRefineUserPrompt, pageImages, refineOpenRouterModel, openRouterApiKey, refinePersonaPrompt, refineTemperature, allTextContent, isThinkingOn);
+            analysisResponse = await analyzeDocumentWithOpenRouter(fullRefineUserPrompt, pageImages, base64Pdf, pdfFile.name, refineOpenRouterModel, openRouterApiKey, refinePersonaPrompt, refineTemperature, allTextContent, isThinkingOn);
           }
     
           if (typeof analysisResponse.result === 'string') {
@@ -511,6 +541,12 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         (analysisMode === 'image-only' || analysisMode === 'image-with-text') &&
         selectedOpenRouterModel &&
         !selectedOpenRouterModel.modality_types.includes('image_input');
+    
+      const showPdfCapabilityWarning = 
+        mode === Mode.OPENROUTER &&
+        analysisMode === 'pdf-direct' &&
+        selectedOpenRouterModel &&
+        !selectedOpenRouterModel.modality_types.includes('pdf_input');
 
       const handleExportSettings = useCallback(() => {
         const getSelectedPresetName = (selectedId: string, presetsList: PromptPreset[]) => {
@@ -690,6 +726,6 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         handleExportSettings, handleImportSettings,
 
         // Derived State
-        isAnalyzeDisabled, isAnyLoading, showImageCapabilityWarning,
+        isAnalyzeDisabled, isAnyLoading, showImageCapabilityWarning, showPdfCapabilityWarning,
     };
 };

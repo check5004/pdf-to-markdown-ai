@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { OpenRouterModel } from '../types';
-import { ChevronDownIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, BrainIcon } from './Icons';
+import { ChevronDownIcon, CheckIcon, BookOpenIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, PhotoIcon, DocumentTextIcon, MicrophoneIcon, VideoCameraIcon, WrenchScrewdriverIcon, BrainIcon, DocumentIcon } from './Icons';
 
 interface ModelSelectorProps {
   model: string;
@@ -192,6 +192,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ model, setModel, models, 
                     {m.name}
                   </span>
                   <div className={`flex items-center gap-1.5 ml-2 flex-shrink-0 ${activeIndex === index ? 'text-white' : 'text-gray-400 dark:text-gray-500'}`}>
+                      {m.modality_types.includes('pdf_input') && <DocumentIcon className="h-4 w-4" title="PDF Input" />}
                       {m.modality_types.includes('text') && <DocumentTextIcon className="h-4 w-4" title="Text Input" />}
                       {m.modality_types.includes('image_input') && <PhotoIcon className="h-4 w-4" title="Image Input" />}
                       {m.modality_types.includes('audio_input') && <MicrophoneIcon className="h-4 w-4" title="Audio Input" />}
@@ -225,6 +226,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ model, setModel, models, 
           <div className="flex justify-between items-center">
             <h4 className="font-bold text-gray-900 dark:text-white text-base">{hoveredModel.name}</h4>
             <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+              {hoveredModel.modality_types.includes('pdf_input') && <DocumentIcon className="h-5 w-5" title="PDF Input" />}
               {hoveredModel.modality_types.includes('text') && <DocumentTextIcon className="h-5 w-5" title="Text Input" />}
               {hoveredModel.modality_types.includes('image_input') && <PhotoIcon className="h-5 w-5" title="Image Input" />}
               {hoveredModel.modality_types.includes('audio_input') && <MicrophoneIcon className="h-5 w-5" title="Audio Input" />}

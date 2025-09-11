@@ -4,14 +4,14 @@ export enum Mode {
   OPENROUTER = 'openrouter'
 }
 
-export type AnalysisMode = 'image-only' | 'image-with-text';
+export type AnalysisMode = 'image-only' | 'image-with-text' | 'pdf-direct';
 
 export interface OpenRouterModelPricing {
   prompt: string;
   completion: string;
 }
 
-export type ModalityType = 'text' | 'image_input' | 'audio_input' | 'video_input' | 'tool_use';
+export type ModalityType = 'text' | 'image_input' | 'audio_input' | 'video_input' | 'tool_use' | 'pdf_input';
 
 export interface OpenRouterModel {
   id: string;

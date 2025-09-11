@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { useAppStateManager } from '../hooks/useAppStateManager';
 import type { useAuth } from '../hooks/useAuth';
@@ -13,7 +12,7 @@ import CollapsibleSection from './CollapsibleSection';
 import ThinkingModeSwitcher from './ThinkingModeSwitcher';
 import GeminiAuth from './GeminiAuth';
 import PdfPreview from './PdfPreview';
-import { WandSparklesIcon, BookOpenIcon, PhotoIcon, ExclamationTriangleIcon } from './Icons';
+import { WandSparklesIcon, BookOpenIcon, PhotoIcon, ExclamationTriangleIcon, DocumentIcon } from './Icons';
 import ModelInfoDisplay from './ModelInfoDisplay';
 
 type StateManager = ReturnType<typeof useAppStateManager>;
@@ -36,7 +35,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ stateManager, auth, isGem
     setMode, setAnalysisMode, setOpenRouterApiKey, setIsApiKeyInvalid, setOpenRouterModel, setIsThinkingEnabled, setIsPdfPreviewOpen,
     handleFileSelect, handleAnalysis,
     handleExportSettings, handleImportSettings,
-    isAnalyzeDisabled, showImageCapabilityWarning,
+    isAnalyzeDisabled, showImageCapabilityWarning, showPdfCapabilityWarning,
   } = stateManager;
 
   const { account, isAuthorized, isAuthLoading, authError, handleLogin, handleLogout } = auth;
@@ -47,7 +46,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ stateManager, auth, isGem
         <div className="space-y-6">
           <h2 className="text-xl font-bold border-b pb-2 border-gray-200 dark:border-gray-700">設定</h2>
           <ModeSwitcher mode={mode} setMode={setMode} isGeminiAvailable={isGeminiAvailable} />
-          <AnalysisModeSwitcher mode={analysisMode} setMode={setAnalysisMode} />
+          <AnalysisModeSwitcher mode={analysisMode} setMode={setAnalysisMode} aiProvider={mode} />
           
           {mode === 'gemini' && isGeminiAvailable && (
             <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
@@ -107,6 +106,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ stateManager, auth, isGem
                 <div className="p-3 bg-amber-50 border-l-4 border-amber-400 text-amber-700 dark:bg-amber-900/20 dark:border-amber-500 dark:text-amber-200 flex items-start gap-3" role="alert">
                   <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />
                   <div><p className="font-bold">モデルの能力に関する警告</p><p className="text-sm">選択中のモデルは画像解析をサポートしていない可能性があります。現在の解析モードで最良の結果を得るには、画像入力アイコン（<PhotoIcon className="h-4 w-4 inline-block -mt-1" />）が付いたモデルを選択してください。</p></div>
+                </div>
+              )}
+               {showPdfCapabilityWarning && (
+                <div className="p-3 bg-amber-50 border-l-4 border-amber-400 text-amber-700 dark:bg-amber-900/20 dark:border-amber-500 dark:text-amber-200 flex items-start gap-3" role="alert">
+                  <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">モデルの能力に関する警告</p>
+                    <p className="text-sm">
+                      選択中のモデルはPDF直接入力をサポートしていない可能性があります。OpenRouterは、まずモデルネイティブのファイル処理機能を試み、利用できない場合はフォールバックとして"mistral-ocr"エンジンを使用します。
+                      それでも処理できない場合、AIは添付ファイルがないかのように応答することがあります。その際は、「画像のみ」または「画像 + テキスト」モードに切り替えてお試しください。
+                    </p>
+                  </div>
                 </div>
               )}
               {isFreeModelSelected && (

@@ -45,7 +45,7 @@ export const fetchModels = async (apiKey: string): Promise<OpenRouterModel[]> =>
 
         const modalities = new Set<ModalityType>();
         
-        // Determine modalities from `architecture.input_modalities`
+        // Determine modalities from `architecture.input_modalities`. This is a broader check.
         if (Array.isArray(model.architecture?.input_modalities)) {
           for (const modality of model.architecture.input_modalities) {
             switch (modality) {
@@ -61,10 +61,22 @@ export const fetchModels = async (apiKey: string): Promise<OpenRouterModel[]> =>
               case 'video':
                 modalities.add('video_input');
                 break;
+              // FIX: Add back the check for 'application' as a robust fallback.
+              // Some models may indicate file/PDF support this way.
+              case 'application':
+                modalities.add('pdf_input');
+                break;
               default:
                 break;
             }
           }
+        }
+
+        // Correctly determine PDF support from `architecture.input_content_types`.
+        // This is the newer, more specific method documented by OpenRouter.
+        // See: https://openrouter.ai/docs/features/multimodal/pdfs
+        if (Array.isArray(model.architecture?.input_content_types) && model.architecture.input_content_types.includes('application/pdf')) {
+            modalities.add('pdf_input');
         }
 
         const supportedParameters = model.supported_parameters || [];
@@ -99,6 +111,8 @@ export const fetchModels = async (apiKey: string): Promise<OpenRouterModel[]> =>
 export const analyzeDocumentWithOpenRouter = async (
   prompt: string,
   base64Images: string[],
+  base64Pdf: string | null,
+  pdfFilename: string | null,
   modelId: string,
   apiKey: string,
   systemInstruction: string,
@@ -129,12 +143,26 @@ ${extractedText}
     });
   }
 
-  userContent.push(...base64Images.map(imgData => ({
-    type: 'image_url',
-    image_url: {
-      url: imgData,
-    },
-  })));
+  if (base64Pdf) {
+    // PDF Directモード: OpenRouterのネイティブPDF処理機能を使用します。
+    // PDF全体をBase64エンコードされたデータURLとして送信します。
+    userContent.push({
+      type: 'file',
+      file: {
+        filename: pdfFilename || 'document.pdf',
+        file_data: base64Pdf,
+      },
+    });
+  } else {
+    // 画像ベースのモード: PDFの各ページを画像として送信します。
+    // ネイティブPDF非対応モデルや、他の解析モードが選択された場合のフォールバックです。
+    userContent.push(...base64Images.map(imgData => ({
+      type: 'image_url',
+      image_url: {
+        url: imgData,
+      },
+    })));
+  }
 
   userContent.push({ type: 'text', text: prompt }); // Add user prompt at the end
 
@@ -212,6 +240,9 @@ ${extractedText}
           message.content.forEach((contentPart: any) => {
             if (contentPart.type === 'image_url' && contentPart.image_url && contentPart.image_url.url) {
               contentPart.image_url.url = contentPart.image_url.url.substring(0, 100) + '... [TRUNCATED]';
+            }
+            if (contentPart.type === 'file' && contentPart.file && contentPart.file.file_data) {
+              contentPart.file.file_data = contentPart.file.file_data.substring(0, 100) + '... [TRUNCATED]';
             }
           });
         }
