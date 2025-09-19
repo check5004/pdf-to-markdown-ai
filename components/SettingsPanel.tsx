@@ -160,7 +160,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ stateManager, auth, isGem
         </button>
       </div>
 
-      <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
+      <div className={`sticky top-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
         <CollapsibleSection title="PDFプレビュー" isOpen={isPdfPreviewOpen && pdfFiles.length > 0} onToggle={() => setIsPdfPreviewOpen(!isPdfPreviewOpen)}>
           <PdfPreview files={pdfFiles} />
         </CollapsibleSection>
