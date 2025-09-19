@@ -11,6 +11,13 @@ const createHeaders = (apiKey: string) => ({
     'X-Title': APP_NAME,
 });
 
+interface DocumentPayload {
+  filename: string;
+  images: string[];
+  base64Pdf: string | null;
+  textContent?: string;
+}
+
 export const fetchModels = async (apiKey: string): Promise<OpenRouterModel[]> => {
   try {
     const response = await fetch(`${API_BASE_URL}/models`, {
@@ -110,14 +117,11 @@ export const fetchModels = async (apiKey: string): Promise<OpenRouterModel[]> =>
 
 export const analyzeDocumentWithOpenRouter = async (
   prompt: string,
-  base64Images: string[],
-  base64Pdf: string | null,
-  pdfFilename: string | null,
+  documents: DocumentPayload[],
   modelId: string,
   apiKey: string,
   systemInstruction: string,
   temperature: number,
-  extractedText?: string,
   isThinkingEnabled?: boolean
 ): Promise<{ result: string; debug: { request: any; response: any; generationResponse?: any }; usage: UsageInfo | null; }> => {
   const messages: any[] = [];
@@ -126,45 +130,48 @@ export const analyzeDocumentWithOpenRouter = async (
     messages.push({ role: 'system', content: systemInstruction });
   }
 
-  const userContent: any[] = [];
+  // FIX: Consolidate all text parts into a single text block to improve model compatibility.
+  // This avoids potential issues with models that may not correctly handle multiple 'text' type
+  // parts within a single user message content array.
+  const textParts: string[] = [prompt];
 
-  if (extractedText) {
-     const contextText = `以下のテキストは、後続の画像群の元となったPDFから抽出されたテキストコンテンツです。
-画像だけでは読み取りが不正確な場合があるため、このテキストを正確な文字情報として最優先で参照してください。
-画像からはレイアウト、図、表の構造を読み取り、テキスト情報と組み合わせて、最終的なドキュメントを生成してください。
-
---- BEGIN EXTRACTED TEXT ---
-${extractedText}
---- END EXTRACTED TEXT ---
-`;
-    userContent.push({
-      type: 'text',
-      text: contextText,
-    });
+  for (const doc of documents) {
+    if (doc.textContent) {
+       const contextText = `以下のテキストは、後続の画像群の元となったPDF「${doc.filename}」から抽出されたテキストコンテンツです。
+  画像だけでは読み取りが不正確な場合があるため、このテキストを正確な文字情報として最優先で参照してください。
+  画像からはレイアウト、図、表の構造を読み取り、テキスト情報と組み合わせて、最終的なドキュメントを生成してください。
+  
+  --- BEGIN EXTRACTED TEXT for ${doc.filename} ---
+  ${doc.textContent}
+  --- END EXTRACTED TEXT for ${doc.filename} ---
+  `;
+      textParts.push(contextText);
+    }
   }
 
-  if (base64Pdf) {
-    // PDF Directモード: OpenRouterのネイティブPDF処理機能を使用します。
-    // PDF全体をBase64エンコードされたデータURLとして送信します。
-    userContent.push({
-      type: 'file',
-      file: {
-        filename: pdfFilename || 'document.pdf',
-        file_data: base64Pdf,
-      },
-    });
-  } else {
-    // 画像ベースのモード: PDFの各ページを画像として送信します。
-    // ネイティブPDF非対応モデルや、他の解析モードが選択された場合のフォールバックです。
-    userContent.push(...base64Images.map(imgData => ({
-      type: 'image_url',
-      image_url: {
-        url: imgData,
-      },
-    })));
-  }
+  const userContent: any[] = [{ type: 'text', text: textParts.join('\n\n') }];
 
-  userContent.push({ type: 'text', text: prompt }); // Add user prompt at the end
+  for (const doc of documents) {
+    if (doc.base64Pdf) {
+      // PDF Directモード: OpenRouterのネイティブPDF処理機能を使用します。
+      // FIX: As per user request, modifying payload to include `filename` and remove `mime_type`.
+      userContent.push({
+        type: 'file',
+        file: {
+          filename: doc.filename,
+          file_data: doc.base64Pdf,
+        },
+      });
+    } else {
+      // 画像ベースのモード
+      userContent.push(...doc.images.map(imgData => ({
+        type: 'image_url',
+        image_url: {
+          url: imgData,
+        },
+      })));
+    }
+  }
 
   messages.push({
     role: 'user',

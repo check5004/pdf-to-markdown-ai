@@ -15,7 +15,7 @@ declare const pdfjsLib: any;
 
 export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGeminiAvailable: boolean; isAuthorized: boolean; }) => {
     // Main Settings
-    const [mode, setMode] = useLocalStorage<Mode>('doc-converter-mode', isGeminiAvailable ? Mode.GEMINI : Mode.OPENROUTER);
+    const [mode, setModeInternal] = useLocalStorage<Mode>('doc-converter-mode', Mode.OPENROUTER);
     const [analysisMode, setAnalysisMode] = useLocalStorage<AnalysisMode>('analysis-mode', 'image-with-text');
     const [openRouterApiKey, setOpenRouterApiKey] = useLocalStorage<string>('openrouter-api-key', '');
     const [isApiKeyInvalid, setIsApiKeyInvalid] = useState<boolean>(false);
@@ -26,7 +26,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
     const [userManuallySetRefineModel, setUserManuallySetRefineModel] = useLocalStorage<boolean>('user-manually-set-refine-model', false);
 
     // File and results state
-    const [pdfFile, setPdfFile] = useState<File | null>(null);
+    const [pdfFiles, setPdfFiles] = useState<File[]>([]);
     const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState<boolean>(false);
     const [analysisHistory, setAnalysisHistory] = useLocalStorage<AnalysisResult[]>('doc-converter-analysis-history', []);
     const [questionsMap, setQuestionsMap] = useLocalStorage<Record<string, Question[]>>('doc-converter-questions-map', {});
@@ -78,6 +78,14 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
     const [diffPresets, setDiffPresets] = useLocalStorage<PromptPreset[]>('diff-presets', []);
     const [selectedDiffPresetId, setSelectedDiffPresetId] = useLocalStorage<string>('diff-selected-preset-id', 'default');
     const [diffPresetName, setDiffPresetName] = useState('');
+
+    const setMode = useCallback((value: Mode | ((val: Mode) => Mode)) => {
+        const valueToStore = value instanceof Function ? value(mode) : value;
+        setModeInternal(valueToStore);
+        if (valueToStore === Mode.OPENROUTER) {
+            setAnalysisMode('pdf-direct');
+        }
+    }, [mode, setModeInternal, setAnalysisMode]);
 
     const defaultPresets = useMemo(() => ({
       main: { id: 'default', name: 'デフォルト設定', personaPrompt: DEFAULT_PERSONA_PROMPT, userPrompt: DEFAULT_USER_PROMPT, temperature: DEFAULT_TEMPERATURE },
@@ -178,23 +186,110 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         }
     }, [mode, openRouterModel, availableModels]);
     
-    const handleFileSelect = (file: File | null) => {
-        setPdfFile(file);
-        setAnalysisHistory([]);
-        setQuestionsMap({});
-        setAnsweredQuestionsMap({});
-        setCustomInstructionsMap({});
-        setDiffMap({});
-        setError('');
-        if (file) {
-          setIsPdfPreviewOpen(true);
-        } else {
-          setIsPdfPreviewOpen(false);
+      const handleFilesAdd = useCallback((newFiles: File[]) => {
+        setPdfFiles(prevFiles => {
+          const existingFileKeys = new Set(prevFiles.map(f => `${f.name}-${f.size}`));
+          // Add only files that are not already in the list
+          const uniqueNewFiles = newFiles.filter(f => !existingFileKeys.has(`${f.name}-${f.size}`));
+          if (uniqueNewFiles.length === 0) {
+              return prevFiles; // No changes
+          }
+      
+          const updatedFiles = [...prevFiles, ...uniqueNewFiles];
+          
+          // Reset analysis state whenever files are added
+          setAnalysisHistory([]);
+          setQuestionsMap({});
+          setAnsweredQuestionsMap({});
+          setCustomInstructionsMap({});
+          setDiffMap({});
+          setError('');
+          
+          setIsPdfPreviewOpen(updatedFiles.length > 0);
+          return updatedFiles;
+        });
+      }, []);
+      
+      const handleFileRemove = useCallback((fileToRemove: File) => {
+        setPdfFiles(prevFiles => {
+          const updatedFiles = prevFiles.filter(f => f.name !== fileToRemove.name || f.size !== fileToRemove.size);
+          
+          // If the list of files has changed, reset the analysis.
+          if (updatedFiles.length !== prevFiles.length) {
+            setAnalysisHistory([]);
+            setQuestionsMap({});
+            setAnsweredQuestionsMap({});
+            setCustomInstructionsMap({});
+            setDiffMap({});
+            setError('');
+          }
+      
+          if (updatedFiles.length === 0) {
+              setIsPdfPreviewOpen(false);
+          }
+          return updatedFiles;
+        });
+      }, []);
+
+      const processPdfFiles = useCallback(async (files: File[]) => {
+        const documentsToProcess = [];
+
+        for (const [index, pdfFile] of files.entries()) {
+            setProgressMessage(`[${index + 1}/${files.length}] ${pdfFile.name} を処理中...`);
+
+            let pageImages: string[] = [];
+            let textContent: string | undefined = undefined;
+            let base64Pdf: string | null = null;
+    
+            if (mode === Mode.OPENROUTER && analysisMode === 'pdf-direct') {
+              setProgressMessage(`PDFをBase64に変換中... (${pdfFile.name})`);
+              const base64String = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(pdfFile);
+              });
+              base64Pdf = base64String;
+            } else {
+              const fileBuffer = await pdfFile.arrayBuffer();
+              const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise;
+      
+              if (analysisMode === 'image-with-text') {
+                let textContentBuilder = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                  const page = await pdf.getPage(i);
+                  const pageText = await page.getTextContent();
+                  textContentBuilder += `--- Page ${i} ---\n${pageText.items.map((item: any) => item.str).join(' ')}\n\n`;
+                }
+                textContent = textContentBuilder;
+              }
+              
+              for (let i = 1; i <= pdf.numPages; i++) {
+                setProgressMessage(`[${index + 1}/${files.length}] ${pdfFile.name}: ${i}/${pdf.numPages}ページを画像化中...`);
+                const page = await pdf.getPage(i);
+                const viewport = page.getViewport({ scale: 1.5 });
+                const canvas = document.createElement('canvas');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                const context = canvas.getContext('2d');
+                if (context) {
+                  await page.render({ canvasContext: context, viewport: viewport }).promise;
+                  pageImages.push(canvas.toDataURL('image/jpeg'));
+                }
+              }
+            }
+            documentsToProcess.push({
+                filename: pdfFile.name,
+                images: pageImages,
+                textContent,
+                base64Pdf,
+            });
         }
-      };
+        return documentsToProcess;
+      }, [mode, analysisMode]);
 
     const handleAnalysis = useCallback(async () => {
-        if (!pdfFile) { setError('最初にPDFファイルをアップロードしてください。'); return; }
+        if (pdfFiles.length === 0) { setError('最初にPDFファイルをアップロードしてください。'); return; }
         if (mode === Mode.GEMINI) {
           if (!isGeminiAvailable) { setError('Gemini APIキーが設定されていないため、Geminiは利用できません。'); return; }
           if (!isAuthorized) { setError('Geminiを利用するには、指定されたドメインのアカウントでログインする必要があります。'); return; }
@@ -211,57 +306,16 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         setDiffMap({});
     
         try {
-          let analysisResponse: { result: string; debug: any; usage: UsageInfo | null };
-          let pageImages: string[] = [];
-          let allTextContent: string | undefined = undefined;
-          let base64Pdf: string | null = null;
-    
-          if (mode === Mode.OPENROUTER && analysisMode === 'pdf-direct') {
-            setProgressMessage('PDFをBase64に変換中...');
-            const base64String = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result);
-              reader.onerror = error => reject(error);
-              reader.readAsDataURL(pdfFile);
-            });
-            base64Pdf = base64String as string;
-          } else {
-            setProgressMessage('PDFファイルを読み込んでいます...');
-            const fileBuffer = await pdfFile.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise;
-    
-            if (analysisMode === 'image-with-text') {
-              let textContentBuilder = '';
-              for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                textContentBuilder += `--- Page ${i} ---\n${textContent.items.map((item: any) => item.str).join(' ')}\n\n`;
-              }
-              allTextContent = textContentBuilder;
-            }
-            
-            for (let i = 1; i <= pdf.numPages; i++) {
-              setProgressMessage(`${i}/${pdf.numPages}ページを処理中...`);
-              const page = await pdf.getPage(i);
-              const viewport = page.getViewport({ scale: 1.5 });
-              const canvas = document.createElement('canvas');
-              canvas.height = viewport.height;
-              canvas.width = viewport.width;
-              const context = canvas.getContext('2d');
-              if (context) {
-                await page.render({ canvasContext: context, viewport: viewport }).promise;
-                pageImages.push(canvas.toDataURL('image/jpeg'));
-              }
-            }
-          }
+          const documentsToProcess = await processPdfFiles(pdfFiles);
           
+          let analysisResponse: { result: string; debug: any; usage: UsageInfo | null };
           if (mode === Mode.GEMINI) {
             setProgressMessage('Geminiで解析中...');
-            analysisResponse = await analyzeDocumentWithGemini(userPrompt, pageImages, personaPrompt, temperature, allTextContent);
+            analysisResponse = await analyzeDocumentWithGemini(userPrompt, documentsToProcess, personaPrompt, temperature);
           } else {
             setProgressMessage(`OpenRouter (${openRouterModel})で解析中...`);
             const isThinkingOn = !!(selectedOpenRouterModel?.supports_thinking && isThinkingEnabled);
-            analysisResponse = await analyzeDocumentWithOpenRouter(userPrompt, pageImages, base64Pdf, pdfFile.name, openRouterModel, openRouterApiKey, personaPrompt, temperature, allTextContent, isThinkingOn);
+            analysisResponse = await analyzeDocumentWithOpenRouter(userPrompt, documentsToProcess, openRouterModel, openRouterApiKey, personaPrompt, temperature, isThinkingOn);
           }
           
           if (typeof analysisResponse.result === 'string') {
@@ -286,7 +340,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
           setIsLoading(false);
           setProgressMessage('');
         }
-      }, [pdfFile, mode, analysisMode, openRouterApiKey, openRouterModel, personaPrompt, userPrompt, temperature, selectedOpenRouterModel, isThinkingEnabled, isGeminiAvailable, isAuthorized, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap, setDiffMap]);
+      }, [pdfFiles, mode, analysisMode, openRouterApiKey, openRouterModel, personaPrompt, userPrompt, temperature, selectedOpenRouterModel, isThinkingEnabled, isGeminiAvailable, isAuthorized, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap, setDiffMap, processPdfFiles]);
     
       const handleGenerateQuestions = useCallback(async (sourceResultId: string) => {
         const sourceResult = analysisHistory.find(r => r.id === sourceResultId);
@@ -313,7 +367,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
       }, [analysisHistory, mode, openRouterApiKey, qgOpenRouterModel, qgPersonaPrompt, qgUserPrompt, qgTemperature, setQuestionsMap, availableModels, isThinkingEnabled]);
     
       const handleRefineDocument = useCallback(async (sourceResultId: string, answeredQuestions: Question[], customInstructions: string) => {
-        if (!sourceResultId || !pdfFile) return;
+        if (!sourceResultId || pdfFiles.length === 0) return;
         
         const sourceDocIndex = analysisHistory.findIndex(r => r.id === sourceResultId);
         if (sourceDocIndex === -1) {
@@ -357,57 +411,16 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         setError('');
     
         try {
+           const documentsToProcess = await processPdfFiles(pdfFiles);
+           
            let analysisResponse: { result: string; debug: any; usage: UsageInfo | null };
-          let pageImages: string[] = [];
-          let allTextContent: string | undefined = undefined;
-          let base64Pdf: string | null = null;
-    
-          if (mode === Mode.OPENROUTER && analysisMode === 'pdf-direct') {
-            setProgressMessage('PDFをBase64に変換中...');
-            const base64String = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result);
-              reader.onerror = error => reject(error);
-              reader.readAsDataURL(pdfFile);
-            });
-            base64Pdf = base64String as string;
-          } else {
-            setProgressMessage('PDFファイルを読み込んでいます...');
-            const fileBuffer = await pdfFile.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise;
-    
-            if (analysisMode === 'image-with-text') {
-              let textContentBuilder = '';
-              for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                textContentBuilder += `--- Page ${i} ---\n${textContent.items.map((item: any) => item.str).join(' ')}\n\n`;
-              }
-              allTextContent = textContentBuilder;
-            }
-            
-            for (let i = 1; i <= pdf.numPages; i++) {
-              setProgressMessage(`${i}/${pdf.numPages}ページを処理中...`);
-              const page = await pdf.getPage(i);
-              const viewport = page.getViewport({ scale: 1.5 });
-              const canvas = document.createElement('canvas');
-              canvas.height = viewport.height;
-              canvas.width = viewport.width;
-              const context = canvas.getContext('2d');
-              if (context) {
-                await page.render({ canvasContext: context, viewport: viewport }).promise;
-                pageImages.push(canvas.toDataURL('image/jpeg'));
-              }
-            }
-          }
-          
           if (mode === Mode.GEMINI) {
             setProgressMessage('Geminiで改良中...');
-            analysisResponse = await analyzeDocumentWithGemini(fullRefineUserPrompt, pageImages, refinePersonaPrompt, refineTemperature, allTextContent);
+            analysisResponse = await analyzeDocumentWithGemini(fullRefineUserPrompt, documentsToProcess, refinePersonaPrompt, refineTemperature);
           } else {
             setProgressMessage(`OpenRouter (${refineOpenRouterModel})で改良中...`);
             const isThinkingOn = !!(availableModels.find(m => m.id === refineOpenRouterModel)?.supports_thinking && isThinkingEnabled);
-            analysisResponse = await analyzeDocumentWithOpenRouter(fullRefineUserPrompt, pageImages, base64Pdf, pdfFile.name, refineOpenRouterModel, openRouterApiKey, refinePersonaPrompt, refineTemperature, allTextContent, isThinkingOn);
+            analysisResponse = await analyzeDocumentWithOpenRouter(fullRefineUserPrompt, documentsToProcess, refineOpenRouterModel, openRouterApiKey, refinePersonaPrompt, refineTemperature, isThinkingOn);
           }
     
           if (typeof analysisResponse.result === 'string') {
@@ -429,7 +442,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
           setProgressMessage('');
         }
     
-      }, [analysisHistory, pdfFile, analysisMode, mode, openRouterApiKey, refineOpenRouterModel, refinePersonaPrompt, refineUserPrompt, refineTemperature, availableModels, isThinkingEnabled, questionsMap, answeredQuestionsMap, customInstructionsMap, diffMap, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap, setDiffMap]);
+      }, [analysisHistory, pdfFiles, analysisMode, mode, openRouterApiKey, refineOpenRouterModel, refinePersonaPrompt, refineUserPrompt, refineTemperature, availableModels, isThinkingEnabled, questionsMap, answeredQuestionsMap, customInstructionsMap, diffMap, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap, setDiffMap, processPdfFiles]);
       
       const handleGenerateDiff = useCallback(async (newResultId: string, oldResultId: string) => {
         const newResult = analysisHistory.find(r => r.id === newResultId);
@@ -533,7 +546,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
       const refinePresetHandlers = useMemo(() => createPresetHandlers(refinePresets, setRefinePresets, selectedRefinePresetId, setSelectedRefinePresetId, setRefinePersonaPrompt, setRefineUserPrompt, setRefineTemperature, setRefinePresetName, defaultPresets.refine, refinePersonaPrompt, refineUserPrompt, refineTemperature), [refinePresets, selectedRefinePresetId, setRefinePresets, setSelectedRefinePresetId, setRefinePersonaPrompt, setRefineUserPrompt, setRefineTemperature, setRefinePresetName, defaultPresets.refine, refinePersonaPrompt, refineUserPrompt, refineTemperature]);
       const diffPresetHandlers = useMemo(() => createPresetHandlers(diffPresets, setDiffPresets, selectedDiffPresetId, setSelectedDiffPresetId, setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, setDiffPresetName, defaultPresets.diff, diffPersonaPrompt, diffUserPrompt, diffTemperature), [diffPresets, selectedDiffPresetId, setDiffPresets, setSelectedDiffPresetId, setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, setDiffPresetName, defaultPresets.diff, diffPersonaPrompt, diffUserPrompt, diffTemperature]);
     
-      const isAnalyzeDisabled = isLoading || !pdfFile || (mode === Mode.OPENROUTER && (!openRouterApiKey || !openRouterModel)) || (mode === Mode.GEMINI && (!isAuthorized || !isGeminiAvailable));
+      const isAnalyzeDisabled = isLoading || pdfFiles.length === 0 || (mode === Mode.OPENROUTER && (!openRouterApiKey || !openRouterModel)) || (mode === Mode.GEMINI && (!isAuthorized || !isGeminiAvailable));
       const isAnyLoading = isLoading || isGeneratingQuestions || isRefining || isGeneratingDiff;
     
       const showImageCapabilityWarning = 
@@ -708,7 +721,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
     return {
         // State
         mode, analysisMode, openRouterApiKey, isApiKeyInvalid, openRouterModel, availableModels, isFreeModelSelected, isThinkingEnabled,
-        pdfFile, isPdfPreviewOpen, analysisHistory, questionsMap, answeredQuestionsMap, customInstructionsMap, diffMap,
+        pdfFiles, isPdfPreviewOpen, analysisHistory, questionsMap, answeredQuestionsMap, customInstructionsMap, diffMap,
         isLoading, isGeneratingQuestions, isRefining, isGeneratingDiff, latestRefiningSourceId, latestDiffingSourceId, error, progressMessage,
         exchangeRateInfo, selectedOpenRouterModel,
 
@@ -722,7 +735,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         setMode, setAnalysisMode, setOpenRouterApiKey, setIsApiKeyInvalid, setOpenRouterModel, setIsThinkingEnabled, setIsPdfPreviewOpen,
         
         // Handlers
-        handleFileSelect, handleAnalysis, handleGenerateQuestions, handleRefineDocument, handleGenerateDiff, handleDownload, handleCopy,
+        handleFilesAdd, handleFileRemove, handleAnalysis, handleGenerateQuestions, handleRefineDocument, handleGenerateDiff, handleDownload, handleCopy,
         handleExportSettings, handleImportSettings,
 
         // Derived State

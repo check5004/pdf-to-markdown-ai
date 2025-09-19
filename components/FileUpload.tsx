@@ -1,22 +1,27 @@
-import React, { useState, useCallback } from 'react';
-import { UploadIcon } from './Icons';
+import React, { useCallback } from 'react';
+import { UploadIcon, XMarkIcon } from './Icons';
 
 interface FileUploadProps {
-  onFileSelect: (file: File | null) => void;
+  files: File[];
+  onFilesAdd: (newFiles: File[]) => void;
+  onFileRemove: (fileToRemove: File) => void;
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
-  const [fileName, setFileName] = useState<string | null>(null);
+const FileUpload: React.FC<FileUploadProps> = ({ files, onFilesAdd, onFileRemove }) => {
+  
+  const handleSelectedFiles = (selectedFiles: FileList | null) => {
+    const fileArray = selectedFiles ? Array.from(selectedFiles) : [];
+    const pdfFiles = fileArray.filter(f => f.type === 'application/pdf');
+    
+    if (pdfFiles.length > 0) {
+      onFilesAdd(pdfFiles);
+    }
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
-      onFileSelect(file);
-    } else {
-      setFileName(null);
-      onFileSelect(null);
-    }
+    handleSelectedFiles(event.target.files);
+    // Reset the input value to allow selecting the same file again after removing it
+    event.target.value = '';
   };
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLLabelElement>) => {
@@ -25,12 +30,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
 
   const handleDrop = useCallback((event: React.DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
-    const file = event.dataTransfer.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      setFileName(file.name);
-      onFileSelect(file);
-    }
-  }, [onFileSelect]);
+    handleSelectedFiles(event.dataTransfer.files);
+  }, [onFilesAdd]);
 
   return (
     <div className="w-full">
@@ -43,16 +44,40 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
         <div className="flex flex-col items-center justify-center pt-5 pb-6">
           <UploadIcon className="w-8 h-8 mb-3 text-gray-400" />
           <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-            <span className="font-semibold">クリックしてアップロード</span>またはドラッグ&ドロップ
+            <span className="font-semibold">クリックしてファイルを追加</span>またはドラッグ&ドロップ
           </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">PDFファイルのみ</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">PDFファイル (複数選択可)</p>
         </div>
-        <input id="file-upload" type="file" className="hidden" accept=".pdf" onChange={handleFileChange} />
+        <input id="file-upload" type="file" className="hidden" accept=".pdf" onChange={handleFileChange} multiple />
       </label>
-      {fileName && (
-        <p className="mt-2 text-sm text-center text-gray-600 dark:text-gray-300">
-          選択中のファイル: <span className="font-medium">{fileName}</span>
-        </p>
+      {files.length > 0 && (
+        <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+          <p className="font-semibold">選択中のファイル ({files.length}件):</p>
+          <ul className="mt-2 max-h-40 overflow-y-auto space-y-2 pr-2">
+            {files.map((file) => (
+              <li key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md animate-fade-in-fast">
+                <span className="truncate text-xs font-medium flex-1 mr-2" title={file.name}>{file.name}</span>
+                <button
+                  type="button"
+                  onClick={() => onFileRemove(file)}
+                  className="p-1 rounded-full text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex-shrink-0"
+                  aria-label={`Remove ${file.name}`}
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+           <style>{`
+            @keyframes fadeInFast {
+              from { opacity: 0; transform: translateY(-5px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            .animate-fade-in-fast {
+              animation: fadeInFast 0.2s ease-out forwards;
+            }
+          `}</style>
+        </div>
       )}
     </div>
   );

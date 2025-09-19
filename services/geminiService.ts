@@ -1,12 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { UsageInfo, Question } from "../types";
 
+interface DocumentPayload {
+  filename: string;
+  images: string[];
+  textContent?: string;
+}
+
 export const analyzeDocumentWithGemini = async (
   prompt: string, 
-  base64Images: string[],
+  documents: DocumentPayload[],
   systemInstruction: string,
   temperature: number,
-  extractedText?: string
 ): Promise<{ result: string; debug: { request: any; response: any }; usage: UsageInfo | null }> => {
   const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -14,32 +19,38 @@ export const analyzeDocumentWithGemini = async (
   }
   const ai = new GoogleGenAI({ apiKey });
 
-  const imageParts = base64Images.map(imgData => {
-    const base64Data = imgData.split(',')[1];
-    return {
-      inlineData: {
-        mimeType: 'image/jpeg',
-        data: base64Data,
-      },
-    };
-  });
+  // FIX: Consolidate all text parts into a single text block to improve model compatibility and parsing robustness.
+  // This ensures the model receives one cohesive instruction block followed by all image data.
+  const textParts: string[] = [prompt];
 
-  const parts: any[] = [];
-
-  if (extractedText) {
-    const contextText = `以下のテキストは、後続の画像群の元となったPDFから抽出されたテキストコンテンツです。
+  for (const doc of documents) {
+    if (doc.textContent) {
+      const contextText = `以下のテキストは、後続の画像群の元となったPDF「${doc.filename}」から抽出されたテキストコンテンツです。
 画像だけでは読み取りが不正確な場合があるため、このテキストを正確な文字情報として最優先で参照してください。
 画像からはレイアウト、図、表の構造を読み取り、テキスト情報と組み合わせて、最終的なドキュメントを生成してください。
 
---- BEGIN EXTRACTED TEXT ---
-${extractedText}
---- END EXTRACTED TEXT ---
+--- BEGIN EXTRACTED TEXT for ${doc.filename} ---
+${doc.textContent}
+--- END EXTRACTED TEXT for ${doc.filename} ---
 `;
-    parts.push({ text: contextText });
+      textParts.push(contextText);
+    }
   }
 
-  parts.push(...imageParts);
-  parts.push({ text: prompt }); // Add user prompt at the end
+  const parts: any[] = [{ text: textParts.join('\n\n') }];
+  
+  for (const doc of documents) {
+    const imageParts = doc.images.map(imgData => {
+      const base64Data = imgData.split(',')[1];
+      return {
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: base64Data,
+        },
+      };
+    });
+    parts.push(...imageParts);
+  }
 
   const payload = {
     model: 'gemini-2.5-flash',

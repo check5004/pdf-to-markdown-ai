@@ -10,9 +10,10 @@ interface GeminiAuthProps {
   authError: string | null;
   onLogin: () => void;
   onLogout: () => void;
+  disabled?: boolean;
 }
 
-const GeminiAuth: React.FC<GeminiAuthProps> = ({ account, isAuthorized, isLoading, authError, onLogin, onLogout }) => {
+const GeminiAuth: React.FC<GeminiAuthProps> = ({ account, isAuthorized, isLoading, authError, onLogin, onLogout, disabled }) => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-4">
@@ -36,12 +37,13 @@ const GeminiAuth: React.FC<GeminiAuthProps> = ({ account, isAuthorized, isLoadin
 
   if (!account) {
     return (
-      <div className="text-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+      <div className={`text-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg ${disabled ? 'opacity-50' : ''}`}>
         <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
           Geminiを利用するには、指定されたMicrosoftアカウントでの認証が必要です。
         </p>
         <button
           onClick={onLogin}
+          disabled={disabled}
           className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-300 dark:border-gray-500 text-sm font-semibold rounded-lg text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
         >
           <img src="https://img.icons8.com/color/48/microsoft.png" alt="Microsoft logo" className="h-6 w-6" />
@@ -53,7 +55,7 @@ const GeminiAuth: React.FC<GeminiAuthProps> = ({ account, isAuthorized, isLoadin
 
   if (!isAuthorized) {
     return (
-       <div className="p-4 bg-red-50 dark:bg-red-900/30 rounded-md border border-red-300 dark:border-red-600">
+       <div className={`p-4 bg-red-50 dark:bg-red-900/30 rounded-md border border-red-300 dark:border-red-600 ${disabled ? 'opacity-50' : ''}`}>
         <div className="flex items-start gap-3">
           <ExclamationTriangleIcon className="h-5 w-5 text-red-500 flex-shrink-0" />
           <div>
@@ -64,6 +66,7 @@ const GeminiAuth: React.FC<GeminiAuthProps> = ({ account, isAuthorized, isLoadin
             </p>
             <button
               onClick={onLogout}
+              disabled={disabled}
               className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none"
             >
               <ArrowRightOnRectangleIcon className="h-4 w-4" />
@@ -76,7 +79,7 @@ const GeminiAuth: React.FC<GeminiAuthProps> = ({ account, isAuthorized, isLoadin
   }
 
   return (
-    <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/30 rounded-md border border-green-200 dark:border-green-700">
+    <div className={`flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/30 rounded-md border border-green-200 dark:border-green-700 ${disabled ? 'opacity-50' : ''}`}>
         <div className="flex items-center gap-3">
             <UserCircleIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
             <div>
@@ -86,6 +89,7 @@ const GeminiAuth: React.FC<GeminiAuthProps> = ({ account, isAuthorized, isLoadin
         </div>
         <button
             onClick={onLogout}
+            disabled={disabled}
             className="flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
             aria-label="ログアウト"
         >

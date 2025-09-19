@@ -36,7 +36,7 @@ const AnalysisModeSwitcher: React.FC<AnalysisModeSwitcherProps> = ({ mode, setMo
           className={`${baseClasses} ${mode === 'pdf-direct' ? activeClasses : aiProvider !== Mode.OPENROUTER ? disabledClasses : inactiveClasses}`}
           title={aiProvider !== Mode.OPENROUTER ? 'PDF DirectモードはOpenRouterでのみ利用可能です。' : 'PDFファイルを直接AIに送信します（対応モデルのみ）。'}
         >
-          PDF Direct (β)
+          PDF Direct (ｵｽｽﾒ)
         </button>
       </div>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">「画像 + テキスト」は精度向上、「PDF Direct」は対応モデルで高速化が期待できます。</p>

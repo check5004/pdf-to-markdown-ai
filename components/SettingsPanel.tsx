@@ -28,29 +28,32 @@ interface SettingsPanelProps {
 const SettingsPanel: React.FC<SettingsPanelProps> = ({ stateManager, auth, isGeminiAvailable, onShowDocs }) => {
   const {
     mode, analysisMode, openRouterApiKey, isApiKeyInvalid, openRouterModel, availableModels, isFreeModelSelected, isThinkingEnabled,
-    pdfFile, isPdfPreviewOpen,
-    isLoading,
+    pdfFiles, isPdfPreviewOpen,
+    isLoading, isAnyLoading,
     selectedOpenRouterModel,
     mainSettings, qgSettings, refineSettings, diffSettings,
     setMode, setAnalysisMode, setOpenRouterApiKey, setIsApiKeyInvalid, setOpenRouterModel, setIsThinkingEnabled, setIsPdfPreviewOpen,
-    handleFileSelect, handleAnalysis,
+    handleFilesAdd, handleFileRemove, handleAnalysis,
     handleExportSettings, handleImportSettings,
     isAnalyzeDisabled, showImageCapabilityWarning, showPdfCapabilityWarning,
   } = stateManager;
 
   const { account, isAuthorized, isAuthLoading, authError, handleLogin, handleLogout } = auth;
+  const isBusy = isAnyLoading || isAuthLoading;
 
   return (
     <>
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8">
-        <div className="space-y-6">
+        <div className={`space-y-6 ${isAnyLoading ? 'opacity-50 pointer-events-none' : ''}`}>
           <h2 className="text-xl font-bold border-b pb-2 border-gray-200 dark:border-gray-700">設定</h2>
           <ModeSwitcher mode={mode} setMode={setMode} isGeminiAvailable={isGeminiAvailable} />
+          {/* FIX: Pass the correct setter `setAnalysisMode` for the analysis mode. */}
           <AnalysisModeSwitcher mode={analysisMode} setMode={setAnalysisMode} aiProvider={mode} />
+        </div>
           
           {mode === 'gemini' && isGeminiAvailable && (
             <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-              <GeminiAuth account={account} isAuthorized={isAuthorized} isLoading={isAuthLoading} authError={authError} onLogin={handleLogin} onLogout={handleLogout} />
+              <GeminiAuth account={account} isAuthorized={isAuthorized} isLoading={isAuthLoading} authError={authError} onLogin={handleLogin} onLogout={handleLogout} disabled={isAnyLoading} />
               {isAuthorized && (
                 <div className="mt-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 dark:bg-yellow-900/20 dark:border-yellow-500 dark:text-yellow-200 flex items-start gap-3" role="alert">
                   <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />
@@ -61,7 +64,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ stateManager, auth, isGem
           )}
           
           {mode === 'openrouter' && (
-            <div className="space-y-4 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className={`space-y-4 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700 ${isAnyLoading ? 'opacity-50 pointer-events-none' : ''}`}>
               <ApiKeyInput apiKey={openRouterApiKey} setApiKey={(key: string) => { setOpenRouterApiKey(key); setIsApiKeyInvalid(false); }} isInvalid={isApiKeyInvalid} />
               
               <div>
@@ -128,10 +131,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ stateManager, auth, isGem
               )}
             </div>
           )}
-        </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+      <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
         <CollapsibleSection title="AI設定">
           <PromptSettings
             main={mainSettings}
@@ -149,18 +151,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ stateManager, auth, isGem
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-8 space-y-8">
-        <div className="space-y-6">
+        <div className={`space-y-6 ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
           <h2 className="text-xl font-bold border-b pb-2 border-gray-200 dark:border-gray-700">アップロード</h2>
-          <FileUpload onFileSelect={handleFileSelect} />
+          <FileUpload files={pdfFiles} onFilesAdd={handleFilesAdd} onFileRemove={handleFileRemove} />
         </div>
-        <button onClick={handleAnalysis} disabled={isAnalyzeDisabled} className="w-full flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all transform hover:scale-105 disabled:scale-100">
+        <button onClick={handleAnalysis} disabled={isAnalyzeDisabled || isBusy} className="w-full flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all transform hover:scale-105 disabled:scale-100">
           {isLoading ? ( <><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>解析中...</> ) : ( <><WandSparklesIcon className="h-5 w-5" />ドキュメントを解析</> )}
         </button>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
-        <CollapsibleSection title="PDFプレビュー" isOpen={isPdfPreviewOpen} onToggle={() => setIsPdfPreviewOpen(!isPdfPreviewOpen)}>
-          <PdfPreview file={pdfFile} />
+      <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
+        <CollapsibleSection title="PDFプレビュー" isOpen={isPdfPreviewOpen && pdfFiles.length > 0} onToggle={() => setIsPdfPreviewOpen(!isPdfPreviewOpen)}>
+          <PdfPreview files={pdfFiles} />
         </CollapsibleSection>
       </div>
 
