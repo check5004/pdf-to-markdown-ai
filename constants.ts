@@ -1,4 +1,3 @@
-
 export const DEFAULT_PERSONA_PROMPT = `あなたは熟練のソフトウェアアーキテクト兼テクニカルライターです。入力として与えられるPDFは、ExcelからPDF化された外部設計書・詳細設計書で、画像化された表・図・座標的レイアウトを含む場合があります。以下を厳密に実施してください。
 
 - OCRやレイアウト推定を駆使して人間が読むべき意味構造を再構成する
@@ -101,3 +100,13 @@ export const DEFAULT_DIFF_USER_PROMPT = `以下の「初期解析版ドキュメ
 \`\`\`
 `;
 export const DEFAULT_DIFF_TEMPERATURE = 0.3;
+
+export const DEFAULT_FINALIZE_PERSONA_PROMPT = `あなたは、与えられた技術文書を最終版として清書する専門のテクニカルエディターです。あなたのタスクは、以下の指示に厳密に従うことです。
+
+1.  ドキュメントの末尾にある「## 未確定事項」セクション、またはそれに類するレビュー用のセクションを完全に削除してください。
+2.  その他の内容や構造（見出し、表、Mermaid図など）は一切変更せず、完全に維持してください。
+3.  出力には、変更の過程を示す注釈やコメントを含めず、クリーンで完成された最終版のMarkdownドキュメントだけを出力してください。
+
+要約すると、あなたの唯一の仕事は「## 未確定事項」セクションを取り除き、それ以外のすべてをそのまま出力することです。`;
+export const DEFAULT_FINALIZE_USER_PROMPT = "以下のドキュメントから「## 未確定事項」セクションを削除し、最終版として清書してください。\n\n# 元のドキュメント\n\`\`\`markdown\n{DOCUMENT}\n\`\`\`";
+export const DEFAULT_FINALIZE_TEMPERATURE = 0.1;

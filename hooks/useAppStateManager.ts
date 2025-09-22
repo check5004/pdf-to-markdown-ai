@@ -7,7 +7,8 @@ import {
     DEFAULT_PERSONA_PROMPT, DEFAULT_USER_PROMPT, DEFAULT_TEMPERATURE,
     DEFAULT_QG_PERSONA_PROMPT, DEFAULT_QG_USER_PROMPT, DEFAULT_QG_TEMPERATURE,
     DEFAULT_REFINE_PERSONA_PROMPT, DEFAULT_REFINE_USER_PROMPT, DEFAULT_REFINE_TEMPERATURE,
-    DEFAULT_DIFF_PERSONA_PROMPT, DEFAULT_DIFF_USER_PROMPT, DEFAULT_DIFF_TEMPERATURE
+    DEFAULT_DIFF_PERSONA_PROMPT, DEFAULT_DIFF_USER_PROMPT, DEFAULT_DIFF_TEMPERATURE,
+    DEFAULT_FINALIZE_PERSONA_PROMPT, DEFAULT_FINALIZE_USER_PROMPT, DEFAULT_FINALIZE_TEMPERATURE
 } from '../constants';
 
 // pdf.js is loaded from CDN, so we need to declare its global object
@@ -39,8 +40,10 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
     const [isGeneratingQuestions, setIsGeneratingQuestions] = useState<boolean>(false);
     const [isRefining, setIsRefining] = useState<boolean>(false);
     const [isGeneratingDiff, setIsGeneratingDiff] = useState<boolean>(false);
+    const [isFinalizing, setIsFinalizing] = useState<boolean>(false);
     const [latestRefiningSourceId, setLatestRefiningSourceId] = useState<string | null>(null);
     const [latestDiffingSourceId, setLatestDiffingSourceId] = useState<string | null>(null);
+    const [finalizingSourceId, setFinalizingSourceId] = useState<string | null>(null);
     const [error, setError] = useState<string>('');
     const [progressMessage, setProgressMessage] = useState<string>('');
     
@@ -366,8 +369,8 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         }
       }, [analysisHistory, mode, openRouterApiKey, qgOpenRouterModel, qgPersonaPrompt, qgUserPrompt, qgTemperature, setQuestionsMap, availableModels, isThinkingEnabled]);
     
-      const handleRefineDocument = useCallback(async (sourceResultId: string, answeredQuestions: Question[], customInstructions: string) => {
-        if (!sourceResultId || pdfFiles.length === 0) return;
+      const handleRefineDocument = useCallback(async (sourceResultId: string, answeredQuestions: Question[], customInstructions: string, isFinalizing?: boolean) => {
+        if (!sourceResultId) return;
         
         const sourceDocIndex = analysisHistory.findIndex(r => r.id === sourceResultId);
         if (sourceDocIndex === -1) {
@@ -411,16 +414,21 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         setError('');
     
         try {
-           const documentsToProcess = await processPdfFiles(pdfFiles);
+           const documentsToProcess: any[] = [];
            
+           const persona = isFinalizing
+            ? refinePersonaPrompt + "\n\n**最終清書指示:**\nドキュメントの改良が完了したら、最後に「## 未確定事項」セクションを完全に削除してください。あなたの最終出力には、このセクションを決して含めないでください。"
+            : refinePersonaPrompt;
+           const temp = isFinalizing ? DEFAULT_FINALIZE_TEMPERATURE : refineTemperature;
+
            let analysisResponse: { result: string; debug: any; usage: UsageInfo | null };
           if (mode === Mode.GEMINI) {
-            setProgressMessage('Geminiで改良中...');
-            analysisResponse = await analyzeDocumentWithGemini(fullRefineUserPrompt, documentsToProcess, refinePersonaPrompt, refineTemperature);
+            setProgressMessage(isFinalizing ? 'Geminiで清書中...' : 'Geminiで改良中...');
+            analysisResponse = await analyzeDocumentWithGemini(fullRefineUserPrompt, documentsToProcess, persona, temp);
           } else {
-            setProgressMessage(`OpenRouter (${refineOpenRouterModel})で改良中...`);
+            setProgressMessage(isFinalizing ? `OpenRouter (${refineOpenRouterModel})で清書中...` : `OpenRouter (${refineOpenRouterModel})で改良中...`);
             const isThinkingOn = !!(availableModels.find(m => m.id === refineOpenRouterModel)?.supports_thinking && isThinkingEnabled);
-            analysisResponse = await analyzeDocumentWithOpenRouter(fullRefineUserPrompt, documentsToProcess, refineOpenRouterModel, openRouterApiKey, refinePersonaPrompt, refineTemperature, isThinkingOn);
+            analysisResponse = await analyzeDocumentWithOpenRouter(fullRefineUserPrompt, documentsToProcess, refineOpenRouterModel, openRouterApiKey, persona, temp, isThinkingOn);
           }
     
           if (typeof analysisResponse.result === 'string') {
@@ -442,7 +450,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
           setProgressMessage('');
         }
     
-      }, [analysisHistory, pdfFiles, analysisMode, mode, openRouterApiKey, refineOpenRouterModel, refinePersonaPrompt, refineUserPrompt, refineTemperature, availableModels, isThinkingEnabled, questionsMap, answeredQuestionsMap, customInstructionsMap, diffMap, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap, setDiffMap, processPdfFiles]);
+      }, [analysisHistory, mode, openRouterApiKey, refineOpenRouterModel, refinePersonaPrompt, refineUserPrompt, refineTemperature, availableModels, isThinkingEnabled, questionsMap, answeredQuestionsMap, customInstructionsMap, diffMap, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap, setDiffMap]);
       
       const handleGenerateDiff = useCallback(async (newResultId: string, oldResultId: string) => {
         const newResult = analysisHistory.find(r => r.id === newResultId);
@@ -475,6 +483,76 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         }
       }, [analysisHistory, mode, openRouterApiKey, diffOpenRouterModel, diffPersonaPrompt, diffUserPrompt, diffTemperature, availableModels, isThinkingEnabled, setDiffMap]);
     
+      const handleFinalizeDocument = useCallback(async (sourceResultId: string) => {
+        const sourceDocIndex = analysisHistory.findIndex(r => r.id === sourceResultId);
+        if (sourceDocIndex === -1) {
+            setError('清書の元となるドキュメントが見つかりませんでした。');
+            return;
+        }
+        const sourceDocument = analysisHistory[sourceDocIndex];
+
+        let newHistory = [...analysisHistory];
+        let newQuestionsMap = {...questionsMap};
+        let newAnsweredMap = {...answeredQuestionsMap};
+        let newCustomInstructionsMap = {...customInstructionsMap};
+        let newDiffMap = {...diffMap};
+        
+        const nextResultIndex = sourceDocIndex + 1;
+        if (newHistory.length > nextResultIndex) {
+            const idsToRemove = newHistory.slice(nextResultIndex).map(r => r.id);
+            newHistory = newHistory.slice(0, nextResultIndex);
+            idsToRemove.forEach(id => {
+                delete newQuestionsMap[id];
+                delete newAnsweredMap[id];
+                delete newCustomInstructionsMap[id];
+                delete newDiffMap[id];
+            });
+        }
+
+        setAnalysisHistory(newHistory);
+        setQuestionsMap(newQuestionsMap);
+        setAnsweredQuestionsMap(newAnsweredMap);
+        setCustomInstructionsMap(newCustomInstructionsMap);
+        setDiffMap(newDiffMap);
+        
+        setIsFinalizing(true);
+        setFinalizingSourceId(sourceResultId);
+        setError('');
+
+        try {
+            const fullFinalizeUserPrompt = DEFAULT_FINALIZE_USER_PROMPT.replace('{DOCUMENT}', sourceDocument.markdown);
+            let analysisResponse: { result: string; debug: any; usage: UsageInfo | null };
+            const documentsToProcess: any[] = [];
+            const modelForFinalize = mode === Mode.GEMINI ? 'gemini-2.5-flash' : refineOpenRouterModel;
+
+            if (mode === Mode.GEMINI) {
+                setProgressMessage('Geminiで清書中...');
+                analysisResponse = await analyzeDocumentWithGemini(fullFinalizeUserPrompt, documentsToProcess, DEFAULT_FINALIZE_PERSONA_PROMPT, DEFAULT_FINALIZE_TEMPERATURE);
+            } else {
+                setProgressMessage(`OpenRouter (${modelForFinalize})で清書中...`);
+                const isThinkingOn = !!(availableModels.find(m => m.id === modelForFinalize)?.supports_thinking && isThinkingEnabled);
+                analysisResponse = await analyzeDocumentWithOpenRouter(fullFinalizeUserPrompt, documentsToProcess, modelForFinalize, openRouterApiKey, DEFAULT_FINALIZE_PERSONA_PROMPT, DEFAULT_FINALIZE_TEMPERATURE, isThinkingOn);
+            }
+
+            if (typeof analysisResponse.result === 'string') {
+                const newResult: AnalysisResult = {
+                  id: self.crypto.randomUUID(),
+                  markdown: analysisResponse.result,
+                  debugInfo: analysisResponse.debug,
+                  usageInfo: analysisResponse.usage,
+                };
+                setAnalysisHistory(prev => [...prev, newResult]);
+              } else {
+                throw new Error("AIからの応答が予期した形式ではありません。");
+              }
+        } catch (err: any) {
+            setError(`清書中にエラーが発生しました: ${err.message}`);
+        } finally {
+            setIsFinalizing(false);
+            setFinalizingSourceId(null);
+            setProgressMessage('');
+        }
+    }, [analysisHistory, mode, openRouterApiKey, refineOpenRouterModel, availableModels, isThinkingEnabled, isGeminiAvailable, isAuthorized, setAnalysisHistory, setQuestionsMap, setAnsweredQuestionsMap, setCustomInstructionsMap, setDiffMap]);
     
       const handleDownload = useCallback((markdown: string, filename: string) => {
         if (!markdown) return;
@@ -547,7 +625,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
       const diffPresetHandlers = useMemo(() => createPresetHandlers(diffPresets, setDiffPresets, selectedDiffPresetId, setSelectedDiffPresetId, setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, setDiffPresetName, defaultPresets.diff, diffPersonaPrompt, diffUserPrompt, diffTemperature), [diffPresets, selectedDiffPresetId, setDiffPresets, setSelectedDiffPresetId, setDiffPersonaPrompt, setDiffUserPrompt, setDiffTemperature, setDiffPresetName, defaultPresets.diff, diffPersonaPrompt, diffUserPrompt, diffTemperature]);
     
       const isAnalyzeDisabled = isLoading || pdfFiles.length === 0 || (mode === Mode.OPENROUTER && (!openRouterApiKey || !openRouterModel)) || (mode === Mode.GEMINI && (!isAuthorized || !isGeminiAvailable));
-      const isAnyLoading = isLoading || isGeneratingQuestions || isRefining || isGeneratingDiff;
+      const isAnyLoading = isLoading || isGeneratingQuestions || isRefining || isGeneratingDiff || isFinalizing;
     
       const showImageCapabilityWarning = 
         mode === Mode.OPENROUTER &&
@@ -708,6 +786,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
             reader.onerror = () => {
                 reject(new Error("ファイルの読み込みに失敗しました。"));
             };
+            // FIX: Corrected FileReader method to `readAsText`.
             reader.readAsText(file);
         });
     }, [
@@ -722,7 +801,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         // State
         mode, analysisMode, openRouterApiKey, isApiKeyInvalid, openRouterModel, availableModels, isFreeModelSelected, isThinkingEnabled,
         pdfFiles, isPdfPreviewOpen, analysisHistory, questionsMap, answeredQuestionsMap, customInstructionsMap, diffMap,
-        isLoading, isGeneratingQuestions, isRefining, isGeneratingDiff, latestRefiningSourceId, latestDiffingSourceId, error, progressMessage,
+        isLoading, isGeneratingQuestions, isRefining, isGeneratingDiff, isFinalizing, latestRefiningSourceId, latestDiffingSourceId, finalizingSourceId, error, progressMessage,
         exchangeRateInfo, selectedOpenRouterModel,
 
         // AI Settings
@@ -735,7 +814,7 @@ export const useAppStateManager = ({ isGeminiAvailable, isAuthorized }: { isGemi
         setMode, setAnalysisMode, setOpenRouterApiKey, setIsApiKeyInvalid, setOpenRouterModel, setIsThinkingEnabled, setIsPdfPreviewOpen,
         
         // Handlers
-        handleFilesAdd, handleFileRemove, handleAnalysis, handleGenerateQuestions, handleRefineDocument, handleGenerateDiff, handleDownload, handleCopy,
+        handleFilesAdd, handleFileRemove, handleAnalysis, handleGenerateQuestions, handleRefineDocument, handleGenerateDiff, handleFinalizeDocument, handleDownload, handleCopy,
         handleExportSettings, handleImportSettings,
 
         // Derived State

@@ -6,7 +6,7 @@ interface ClarificationPanelProps {
   questions: Question[];
   answeredQuestions?: Question[] | null;
   initialCustomInstructions?: string;
-  onAnswersSubmit: (answeredQuestions: Question[], customInstructions: string) => void;
+  onAnswersSubmit: (answeredQuestions: Question[], customInstructions: string, isFinalizing?: boolean) => void;
   isRefining: boolean;
 }
 
@@ -16,6 +16,7 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({ questions, answ
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [customInstructions, setCustomInstructions] = useState('');
   const [isOpen, setIsOpen] = useState(true);
+  const [wantsFinalization, setWantsFinalization] = useState(false);
 
   useEffect(() => {
     const initialAnswers: Record<string, string> = {};
@@ -42,7 +43,7 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({ questions, answ
       ...q,
       answer: answers[q.id] || '',
     }));
-    onAnswersSubmit(answeredQuestions, customInstructions);
+    onAnswersSubmit(answeredQuestions, customInstructions, wantsFinalization);
   };
   
   const allQuestionsAnswered = questions.every(q => (answers[q.id] || '').trim() !== '');
@@ -143,6 +144,30 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({ questions, answ
                 </div>
             </div>
           </div>
+          
+          <div className="pt-6 border-t border-blue-200 dark:border-blue-800">
+            <div className="relative flex items-start">
+              <div className="flex h-6 items-center">
+                <input
+                  id="finalize-checkbox"
+                  aria-describedby="finalize-description"
+                  name="finalize"
+                  type="checkbox"
+                  checked={wantsFinalization}
+                  onChange={(e) => setWantsFinalization(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-600 dark:bg-gray-700 dark:border-gray-600"
+                />
+              </div>
+              <div className="ml-3 text-sm leading-6">
+                <label htmlFor="finalize-checkbox" className="font-medium text-gray-900 dark:text-gray-100">
+                  ドキュメントを清書する
+                </label>
+                <p id="finalize-description" className="text-gray-500 dark:text-gray-400">
+                  有効にすると、AIは「未確定事項」などのレビュー用セクションを削除し、最終的な完成版ドキュメントを生成します。
+                </p>
+              </div>
+            </div>
+          </div>
 
           <div className="flex justify-end pt-4">
             <button
@@ -156,12 +181,12 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({ questions, answ
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span>改良中...</span>
+                  <span>{wantsFinalization ? '清書中...' : '改良中...'}</span>
                 </>
               ) : (
                 <>
                   <WandSparklesIcon className="h-5 w-5" />
-                  <span>回答を元にドキュメントを改良</span>
+                  <span>{wantsFinalization ? '回答を元に清書を実行' : '回答を元にドキュメントを改良'}</span>
                 </>
               )}
             </button>
